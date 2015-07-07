@@ -30,26 +30,24 @@
 #include <msp430.h>
 #include "typedefs.h"
 #include "gpsif.h"
+#include "dbgif.h"
 #include "ubxprot.h"
 
 #define GPSRXCHAR	0x01
 #define BUTTON1		0x02
-
-U8 message[82];
 static U16 cmdToDo = 0;
+
+U8 messagetx[82];
+U8 messagerx[82];
+
 
 int main(void)
 {
 	U16 len;
 
-	U8 tmpChar;
-
 	WDTCTL = WDTPW | WDTHOLD;                 // Stop Watchdog
 
-	// Configure GPIO
-	P4SEL0 |= BIT2 | BIT3;                    // USCI_A0 UART operation on P4
-	P4SEL1 &= ~(BIT2 | BIT3);
-
+	dbg_initport();
 	gps_initport();
 
 	P6DIR |= BIT5 | BIT6;                     // Set P6.0 to output direction
@@ -74,21 +72,7 @@ int main(void)
 	CSCTL3 = DIVA__1 | DIVS__1 | DIVM__1;     // Set all dividers
 	CSCTL0_H = 0;                             // Lock CS registers
 
-	// Configure USCI_A0 for UART mode
-	UCA0CTLW0 = UCSWRST;                      // Put eUSCI in reset
-	UCA0CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
-	// Baud Rate calculation
-	// 8000000/(16*9600) = 52.083
-	// Fractional portion = 0.083
-	// User's Guide Table 21-4: UCBRSx = 0x04
-	// UCBRFx = int ( (52.083-52)*16) = 1
-	UCA0BR0 = 52;                             // 8000000/16/9600
-	UCA0BR0 = 26;                             // 8000000/16/9600/2
-	UCA0BR1 = 0x00;
-	UCA0MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
-	UCA0CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
-	//UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
-
+	dbg_inituart();
 	gps_inituart();
 
 	__bis_SR_register(LPM3_bits | GIE);       // Enter LPM3, interrupts enabled
@@ -99,32 +83,27 @@ int main(void)
 		if(cmdToDo & BUTTON1)
 		{
 			// poll NMEA configuration
-			len = ubx_poll_cfgnmea(message);
-			gps_cmdtx(message, len);
+			len = ubx_poll_cfgnmea(messagetx);
+			gps_cmdtx(messagetx, len);
 			cmdToDo &= ~BUTTON1;
 		}
+
 		if(cmdToDo & GPSRXCHAR)
 		{
-			while(!(UCA0IFG&UCTXIFG)); //wait until UCA0 TX empty
-			tmpChar = UCA1RXBUF;
-			if (tmpChar == 0xB5)
+			if (!gps_rxchar())
 			{
-				P6OUT ^= BIT6;                      // Toggle LEDs
-				__no_operation();                         // For debugger
+				//character/message processed
+				cmdToDo &= ~GPSRXCHAR;
 			}
-			if (tmpChar == '$')
-			{
-				P6OUT ^= BIT5;                      // Toggle LEDs
-				__no_operation();                         // For debugger
-			}
-	 		UCA0TXBUF = tmpChar;
-
-	 		cmdToDo &= ~GPSRXCHAR;
 		}
 
-		//go sleep
-		__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
-		__no_operation();                       // For debugger
+
+		if (!cmdToDo)
+		{
+			//go sleep
+			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
+			__no_operation();                       // For debugger
+		}
 	}
 }
 

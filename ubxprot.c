@@ -51,3 +51,32 @@ void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb)
 		*pCkb = *pCkb + *pCka;
 	}
 }
+
+/** @brief Process U-BLOX proprietary protocol message
+ *
+ * @param msg pointer to UBX message */
+U16 ubx_procmsg(U8 * pMsg)
+{
+	UbxPckHeader_s * pMsgHead;
+	UbxPckChecksum_s * pMsgCs;
+	UbxPckChecksum_s cs;
+	U8 * buffForChecksum;
+	U16 checksumByteRange;
+
+	U16 retVal = 0;
+
+	pMsgHead = (UbxPckHeader_s *) pMsg;
+	pMsgCs = (UbxPckChecksum_s *) (pMsg + sizeof(UbxPckHeader_s) + pMsgHead->length);
+
+	checksumByteRange = pMsgHead->length + 4; //4 stays for class, ID, length field
+	buffForChecksum = (U8 *) &pMsgHead->ubxClass;
+
+	ubx_genchecksum(buffForChecksum, checksumByteRange, &cs.cka, &cs.ckb);
+
+	if ((pMsgCs->cka != cs.cka) || (pMsgCs->cka != cs.cka))
+	{
+		retVal = 1;
+	}
+
+	return retVal;
+}

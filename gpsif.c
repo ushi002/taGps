@@ -6,7 +6,12 @@
  */
 
 #include <msp430.h>
-#include "typedefs.h"
+#include "gpsif.h"
+#include "ubxprot.h"
+#include "dbgif.h"
+
+static U8 gpsumsg[82]; //GPS UBX message
+static UbxPckHeader_s * pGpsUMsgHead = (UbxPckHeader_s *) gpsumsg;
 
 void gps_initport(void)
 {
@@ -43,9 +48,85 @@ void gps_cmdtx(U8 * buff, U16 len)
 	for(i = 0; i < len; i++)
 	{
 		while(!(UCA1IFG & UCTXIFG));			//wait until UART0 TX buffer is empty
-		while(!(UCA0IFG & UCTXIFG));			//wait until UART0 TX buffer is empty
 		UCA1TXBUF = buff[i];
-		UCA0TXBUF = i + 48; //get decimal number
 	}
 	//P6OUT ^= BIT5 | BIT6;                   // Toggle LEDs
+}
+
+/** @brief Process received character from GPS
+ *
+ * @return 0 if done, else processing not finished */
+U16 gps_rxchar(void)
+{
+	static ubxstat_e ubxstat = ubxstat_idle;
+	static U16 ubxBytePos = 0;
+
+	U8 rxChar;
+	U16 retVal = 0;
+
+	rxChar = UCA1RXBUF;
+
+	switch (ubxstat)
+	{
+	case ubxstat_idle:
+		if (rxChar == 0xB5)
+		{
+			ubxstat = ubxstat_started;
+			ubxBytePos = 0;
+			gpsumsg[ubxBytePos++] = rxChar;
+		}
+		else
+		{
+			dbg_txchar(&rxChar);
+		}
+		break;
+	case ubxstat_started:
+		gpsumsg[ubxBytePos++] = rxChar;
+		if (ubxBytePos == 4)
+		{
+			ubxstat = ubxstat_getlen;
+		}
+		break;
+	case ubxstat_getlen:
+		gpsumsg[ubxBytePos++] = rxChar;
+		if (ubxBytePos == 6)
+		{
+			ubxstat = ubxstat_rec;
+		}
+		break;
+	case ubxstat_rec:
+		gpsumsg[ubxBytePos++] = rxChar;
+		pcklen = gpsumsg[4] + (gpsumsg[5]<<8);
+		if (ubxBytePos >= (pGpsUMsgHead->length + sizeof(UbxPckHeader_s) + sizeof(UbxPckChecksum_s)))
+		{
+			//process packet
+			ubxstat = ubxstat_process;
+			retVal++;
+		}
+		if (pGpsUMsgHead->length > 80)
+		{
+			ubxstat = ubxstat_idle;
+			__no_operation();
+		}
+		break;
+	case ubxstat_process:
+		if (!ubx_procmsg(gpsumsg))
+		{
+			//message is OK
+			P6OUT |= BIT6;	//turn off led
+		}
+		else
+		{
+			//message error
+			P6OUT &= ~BIT6;	//turn on led
+		}
+		ubxstat = ubxstat_idle;
+		break;
+	default: //error state
+		P6OUT ^= BIT5;	//toggle led
+		__no_operation();
+		break;
+	}
+
+	return retVal;
 }
