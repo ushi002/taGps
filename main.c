@@ -82,8 +82,10 @@ int main(void)
 
 		if(cmdToDo & BUTTON1)
 		{
+			dbg_ledsoff();
 			// poll NMEA configuration
-			len = ubx_poll_cfgnmea(messagetx);
+			len = ubx_poll_cfgprt(messagetx);
+			//len = ubx_poll_cfgnmea(messagetx);
 			gps_cmdtx(messagetx, len);
 			cmdToDo &= ~BUTTON1;
 		}

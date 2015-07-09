@@ -11,10 +11,12 @@
 
 typedef enum{
 	ubxstat_idle = 0,
-	ubxstat_started = 1,
-	ubxstat_getlen = 2,
-	ubxstat_rec = 3,
-	ubxstat_process = 4
+	ubxstat_syncchar2 = 1,
+	ubxstat_msgclass = 2,
+	ubxstat_msgid = 3,
+	ubxstat_getlen = 4,
+	ubxstat_rec = 5,
+	ubxstat_process = 6
 } ubxstat_e;
 
 void gps_initport(void);

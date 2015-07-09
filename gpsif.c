@@ -71,7 +71,7 @@ U16 gps_rxchar(void)
 	case ubxstat_idle:
 		if (rxChar == 0xB5)
 		{
-			ubxstat = ubxstat_started;
+			ubxstat = ubxstat_syncchar2;
 			ubxBytePos = 0;
 			gpsumsg[ubxBytePos++] = rxChar;
 		}
@@ -80,13 +80,18 @@ U16 gps_rxchar(void)
 			dbg_txchar(&rxChar);
 		}
 		break;
-	case ubxstat_started:
+	case ubxstat_syncchar2:
 		gpsumsg[ubxBytePos++] = rxChar;
-		if (ubxBytePos == 4)
-		{
-			ubxstat = ubxstat_getlen;
-		}
+		ubxstat = ubxstat_msgclass;
 		break;
+	case ubxstat_msgclass:
+			gpsumsg[ubxBytePos++] = rxChar;
+			ubxstat = ubxstat_msgid;
+			break;
+	case ubxstat_msgid:
+				gpsumsg[ubxBytePos++] = rxChar;
+				ubxstat = ubxstat_getlen;
+				break;
 	case ubxstat_getlen:
 		gpsumsg[ubxBytePos++] = rxChar;
 		if (ubxBytePos == 6)
@@ -96,7 +101,6 @@ U16 gps_rxchar(void)
 		break;
 	case ubxstat_rec:
 		gpsumsg[ubxBytePos++] = rxChar;
-		pcklen = gpsumsg[4] + (gpsumsg[5]<<8);
 		if (ubxBytePos >= (pGpsUMsgHead->length + sizeof(UbxPckHeader_s) + sizeof(UbxPckChecksum_s)))
 		{
 			//process packet
@@ -113,12 +117,12 @@ U16 gps_rxchar(void)
 		if (!ubx_procmsg(gpsumsg))
 		{
 			//message is OK
-			P6OUT |= BIT6;	//turn off led
+			dbg_ledok();
 		}
 		else
 		{
 			//message error
-			P6OUT &= ~BIT6;	//turn on led
+			dbg_lederror();
 		}
 		ubxstat = ubxstat_idle;
 		break;

@@ -31,6 +31,29 @@ U8 ubx_poll_cfgnmea(U8 * msg)
 	return 8; //length of UBX_CFG_NMEA poll request
 }
 
+U8 ubx_poll_cfgprt(U8 * msg)
+{
+	UbxPckHeader_s * pHead;
+	UbxPckChecksum_s * pCheckSum;
+	U8 * buffForChecksum;
+	U16 checksumByteRange;
+
+	pHead = (UbxPckHeader_s *) msg;
+
+	pHead->ubxClass = ubxClassCfg;
+	pHead->ubxId = UbxClassIdCfgPrt;
+	pHead->length = 0;
+
+	pCheckSum = (UbxPckChecksum_s *) (msg + sizeof(UbxPckHeader_s) + pHead->length);
+
+	checksumByteRange = pHead->length + 4; //4 stays for class, ID, length field
+	buffForChecksum = (U8 *) &pHead->ubxClass;
+
+	ubx_genchecksum(buffForChecksum, checksumByteRange, &pCheckSum->cka, &pCheckSum->ckb);
+
+	return 8; //length of UBX_CFG_NMEA poll request
+}
+
 /** @brief Compute U-BLOX proprietary protocol checksum
  *
  * @param pBuff pointer to the buffer over which is the
