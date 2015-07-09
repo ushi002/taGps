@@ -59,6 +59,41 @@ U8 ubx_poll_cfgprt(U8 * msg)
 	return pHead->length + 8; //length of UBX_CFG_PRT poll request (pck-length is zero)
 }
 
+U8 ubx_set_cfgprt(U8 * msg)
+{
+    I16 i, k;
+    U16 message_found = 0;
+    UbxPckHeader_s * pHead;
+    UbxCfgPrt_s *pBody;
+
+    //find existing cfgprt message:
+    for (i = MAX_MESSAGES_NUM-1; i >= 0; i--)
+    {
+        if (ubx_messages[i][2] == ubxClassCfg &&
+                ubx_messages[i][3] == UbxClassIdCfgPrt) //message found, use it
+        {
+            message_found = 1;
+            pHead = (UbxPckHeader_s *) ubx_messages[i];
+            for (k = pHead->length+8-1; k >= 0; k--)
+            {
+                msg[k] = ubx_messages[i][k];
+            }
+            break;
+        }
+    }
+    if (!message_found)
+    {
+        dbg_lederror();
+    }
+
+    pBody = (UbxCfgPrt_s *) (msg + sizeof(UbxPckHeader_s));
+    pBody->outProtoMask = 1; //keep only UBX messages, disable NMEA
+
+    ubx_addchecksum(msg);
+
+    return pHead->length + 8; //length of UBX_CFG_PRT poll request (pck-length is zero)
+}
+
 /** @brief Add U-BLOX checksum to the end of message */
 void ubx_addchecksum(U8 * msg)
 {
@@ -144,6 +179,7 @@ void ubx_msgst(U8 * pMsg)
             {
                 ubx_messages[i][k] = pMsg[k];
             }
+            break;
         }
     }
     if (!message_found)
@@ -158,6 +194,7 @@ void ubx_msgst(U8 * pMsg)
                 {
                     ubx_messages[i][k] = pMsg[k];
                 }
+                break;
             }
         }
     }

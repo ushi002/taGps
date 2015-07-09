@@ -55,7 +55,9 @@ void gps_cmdtx(U8 * buff, U16 len)
 
 /** @brief Process received character from GPS
  *
- * @return 0 if done, else processing not finished */
+ * @return - 0 done
+ *         - 1 need one more call
+ *         - 2 error */
 U16 gps_rxchar(void)
 {
 	static ubxstat_e ubxstat = ubxstat_idle;
@@ -105,7 +107,7 @@ U16 gps_rxchar(void)
 		{
 			//process packet
 			ubxstat = ubxstat_process;
-			retVal++;
+			retVal = 1;
 		}
 		if (pGpsUMsgHead->length > 80)
 		{
@@ -124,6 +126,7 @@ U16 gps_rxchar(void)
 		{
 			//message error
 			dbg_lederror();
+			retVal = 2;
 		}
 		ubxstat = ubxstat_idle;
 		break;

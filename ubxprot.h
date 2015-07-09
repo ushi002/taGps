@@ -51,11 +51,25 @@ typedef struct UbxPckChecksum_t
 	U8  ckb;
 }UbxPckChecksum_s;
 
+typedef struct UbxCfgPrt_t
+{
+    U8  portId;
+    U8  reserved;
+    U16 txReady;
+    U32 mode;
+    U32 baudRate;
+    U16 inProtoMask;
+    U16 outProtoMask;
+    U16 flags;
+    U16 reserved2;
+}UbxCfgPrt_s;
+
 
 void ubx_init(void);
 void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb);
 U8 ubx_poll_cfgnmea(U8 * msg);
 U8 ubx_poll_cfgprt(U8 * msg);
+U8 ubx_set_cfgprt(U8 * msg);
 
 U16 ubx_checkmsg(U8 * msg);
 void ubx_msgst(U8 * pMsg);

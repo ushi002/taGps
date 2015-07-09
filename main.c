@@ -40,6 +40,7 @@ static U16 cmdToDo = 0;
 U8 messagetx[82];
 U8 messagerx[82];
 
+static U16 button_step = 0;
 
 int main(void)
 {
@@ -84,19 +85,46 @@ int main(void)
 		if(cmdToDo & BUTTON1)
 		{
 			dbg_ledsoff();
-			// poll NMEA configuration
-			len = ubx_poll_cfgprt(messagetx);
-			//len = ubx_poll_cfgnmea(messagetx);
+			switch (button_step)
+			{
+			case 0:
+				// poll NMEA configuration
+				len = ubx_poll_cfgprt(messagetx);
+				//len = ubx_poll_cfgnmea(messagetx);
+				button_step++;
+				break;
+			case 1:
+				len = ubx_set_cfgprt(messagetx);
+				button_step++;
+				break;
+			case 2:
+				len = ubx_poll_cfgprt(messagetx);
+				break;
+			default:
+				break;
+			}
+
 			gps_cmdtx(messagetx, len);
 			cmdToDo &= ~BUTTON1;
 		}
 
 		if(cmdToDo & GPSRXCHAR)
 		{
-			if (!gps_rxchar())
+			switch (gps_rxchar())
 			{
+			case 0:
 				//character/message processed
 				cmdToDo &= ~GPSRXCHAR;
+				break;
+			case 1:
+				//need one more loop
+				break;
+			case 2:
+				//error processing message, do it again
+				button_step--;
+				break;
+			default:
+				break;
 			}
 		}
 
