@@ -82,7 +82,7 @@ void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb)
 /** @brief Process U-BLOX proprietary protocol message
  *
  * @param msg pointer to UBX message */
-U16 ubx_procmsg(U8 * pMsg)
+U16 ubx_checkmsg(U8 * pMsg)
 {
 	UbxPckHeader_s * pMsgHead;
 	UbxPckChecksum_s * pMsgCs;

@@ -114,7 +114,7 @@ U16 gps_rxchar(void)
 		}
 		break;
 	case ubxstat_process:
-		if (!ubx_procmsg(gpsumsg))
+		if (!ubx_checkmsg(gpsumsg))
 		{
 			//message is OK
 			dbg_ledok();

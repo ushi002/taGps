@@ -57,5 +57,5 @@ void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb);
 U8 ubx_poll_cfgnmea(U8 * msg);
 U8 ubx_poll_cfgprt(U8 * msg);
 
-U16 ubx_procmsg(U8 * msg);
+U16 ubx_checkmsg(U8 * msg);
 #endif /* UBXPROT_H_ */
