@@ -8,12 +8,11 @@
 
 #include "ubxprot.h"
 
+void ubx_addchecksum(U8 * msg);
+
 U8 ubx_poll_cfgnmea(U8 * msg)
 {
 	UbxPckHeader_s * pHead;
-	UbxPckChecksum_s * pCheckSum;
-	U8 * buffForChecksum;
-	U16 checksumByteRange;
 
 	pHead = (UbxPckHeader_s *) msg;
 
@@ -21,22 +20,14 @@ U8 ubx_poll_cfgnmea(U8 * msg)
 	pHead->ubxId = UbxClassIdCfgNmea;
 	pHead->length = 0;
 
-	pCheckSum = (UbxPckChecksum_s *) (msg + sizeof(UbxPckHeader_s) + pHead->length);
+	ubx_addchecksum(msg);
 
-	checksumByteRange = pHead->length + 4; //4 stays for class, ID, length field
-	buffForChecksum = (U8 *) &pHead->ubxClass;
-
-	ubx_genchecksum(buffForChecksum, checksumByteRange, &pCheckSum->cka, &pCheckSum->ckb);
-
-	return 8; //length of UBX_CFG_NMEA poll request
+	return pHead->length + 8; //length of UBX_CFG_NMEA poll request (pck-length is zero)
 }
 
 U8 ubx_poll_cfgprt(U8 * msg)
 {
 	UbxPckHeader_s * pHead;
-	UbxPckChecksum_s * pCheckSum;
-	U8 * buffForChecksum;
-	U16 checksumByteRange;
 
 	pHead = (UbxPckHeader_s *) msg;
 
@@ -44,14 +35,27 @@ U8 ubx_poll_cfgprt(U8 * msg)
 	pHead->ubxId = UbxClassIdCfgPrt;
 	pHead->length = 0;
 
-	pCheckSum = (UbxPckChecksum_s *) (msg + sizeof(UbxPckHeader_s) + pHead->length);
+	ubx_addchecksum(msg);
 
-	checksumByteRange = pHead->length + 4; //4 stays for class, ID, length field
-	buffForChecksum = (U8 *) &pHead->ubxClass;
+	return pHead->length + 8; //length of UBX_CFG_PRT poll request (pck-length is zero)
+}
 
-	ubx_genchecksum(buffForChecksum, checksumByteRange, &pCheckSum->cka, &pCheckSum->ckb);
+/** @brief Add U-BLOX checksum to the end of message */
+void ubx_addchecksum(U8 * msg)
+{
+    UbxPckHeader_s * pHead;
+    UbxPckChecksum_s * pCheckSum;
+    U8 * buffForChecksum;
+    U16 checksumByteRange;
 
-	return 8; //length of UBX_CFG_NMEA poll request
+    pHead = (UbxPckHeader_s *) msg;
+
+    pCheckSum = (UbxPckChecksum_s *) (msg + sizeof(UbxPckHeader_s) + pHead->length);
+
+    checksumByteRange = pHead->length + 4; //4 stays for class, ID, length field
+    buffForChecksum = (U8 *) &pHead->ubxClass;
+
+    ubx_genchecksum(buffForChecksum, checksumByteRange, &pCheckSum->cka, &pCheckSum->ckb);
 }
 
 /** @brief Compute U-BLOX proprietary protocol checksum
