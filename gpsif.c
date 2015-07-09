@@ -118,6 +118,7 @@ U16 gps_rxchar(void)
 		{
 			//message is OK
 			dbg_ledok();
+			ubx_msgst(gpsumsg);
 		}
 		else
 		{

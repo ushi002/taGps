@@ -7,8 +7,27 @@
 
 
 #include "ubxprot.h"
+#include "dbgif.h"
 
 void ubx_addchecksum(U8 * msg);
+
+#define MAX_MESSAGES_NUM    10
+#define MAX_MESSAGE_LEN     40
+
+static U8 ubx_messages[MAX_MESSAGES_NUM][MAX_MESSAGE_LEN];
+
+void ubx_init(void)
+{
+    I16 i, k;
+
+    for (i = MAX_MESSAGES_NUM-1; i >= 0; i--)
+    {
+        for (k = MAX_MESSAGE_LEN-1; k >= 0; k--)
+        {
+            ubx_messages[i][k] = 0;
+        }
+    }
+}
 
 U8 ubx_poll_cfgnmea(U8 * msg)
 {
@@ -106,4 +125,44 @@ U16 ubx_checkmsg(U8 * pMsg)
 	}
 
 	return retVal;
+}
+
+void ubx_msgst(U8 * pMsg)
+{
+    I16 i, k;
+    UbxPckHeader_s * pHead = (UbxPckHeader_s *) pMsg;
+    U16 message_found = 0;
+
+    //search for first free message
+    for (i = MAX_MESSAGES_NUM-1; i >= 0; i--)
+    {
+        if (ubx_messages[i][2] == pHead->ubxClass &&
+                ubx_messages[i][3] == pHead->ubxId) //the same message found, update it
+        {
+            message_found = 1;
+            for (k = pHead->length+8-1; k >= 0; k--)
+            {
+                ubx_messages[i][k] = pMsg[k];
+            }
+        }
+    }
+    if (!message_found)
+    {
+        for (i = MAX_MESSAGES_NUM-1; i >= 0; i--) //search for a free space
+        {
+
+            if (ubx_messages[i][0] == 0) //empty field, store message
+            {
+                message_found = 1;
+                for (k = pHead->length+8-1; k >= 0; k--)
+                {
+                    ubx_messages[i][k] = pMsg[k];
+                }
+            }
+        }
+    }
+    if (!message_found) //no matching message, no more free space...
+    {
+        dbg_lederror();
+    }
 }

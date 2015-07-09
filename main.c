@@ -74,6 +74,7 @@ int main(void)
 
 	dbg_inituart();
 	gps_inituart();
+	ubx_init();
 
 	__bis_SR_register(LPM3_bits | GIE);       // Enter LPM3, interrupts enabled
 	__no_operation();                         // For debugger
