@@ -35,6 +35,13 @@
 
 #define GPSRXCHAR	0x01
 #define BUTTON1		0x02
+
+typedef enum ButtonStep_t {
+	buttonStep_poll_cfg = 0,
+	buttonStep_polling_cfg = 1,
+	buttonStep_set_cfg = 2
+}ButtonStep_e;
+
 static U16 cmdToDo = 0;
 
 U8 messagetx[82];
@@ -44,8 +51,6 @@ static U16 button_step = 0;
 
 int main(void)
 {
-	U16 len;
-
 	WDTCTL = WDTPW | WDTHOLD;                 // Stop Watchdog
 
 	dbg_initport();
@@ -87,24 +92,25 @@ int main(void)
 			dbg_ledsoff();
 			switch (button_step)
 			{
-			case 0:
+			case buttonStep_poll_cfg:
 				// poll NMEA configuration
-				len = ubx_poll_cfgprt(messagetx);
+				if (!ubx_poll_cfgprt(messagetx))
 				//len = ubx_poll_cfgnmea(messagetx);
-				button_step++;
+				{
+					button_step = buttonStep_polling_cfg;
+				}
 				break;
-			case 1:
-				len = ubx_set_cfgprt(messagetx);
-				button_step++;
-				break;
-			case 2:
-				len = ubx_poll_cfgprt(messagetx);
+			case buttonStep_set_cfg:
+				if(!ubx_set_cfgprt(messagetx))
+				{
+					button_step = buttonStep_poll_cfg;
+				}
 				break;
 			default:
 				break;
 			}
 
-			gps_cmdtx(messagetx, len);
+			gps_cmdtx(messagetx);
 			cmdToDo &= ~BUTTON1;
 		}
 
@@ -113,15 +119,27 @@ int main(void)
 			switch (gps_rxchar())
 			{
 			case 0:
-				//character/message processed
+				//character (no ubx) processed successfuly
 				cmdToDo &= ~GPSRXCHAR;
 				break;
 			case 1:
 				//need one more loop
 				break;
-			case 2:
+			case 2: //received ubx message
+				cmdToDo &= ~GPSRXCHAR;
+				switch (button_step)
+				{
+				case buttonStep_polling_cfg:
+					button_step = buttonStep_set_cfg;
+					break;
+				default:
+					break;
+				}
+				break;
+			case 3:
 				//error processing message, do it again
-				button_step--;
+				button_step = buttonStep_poll_cfg;
+				cmdToDo &= ~GPSRXCHAR;
 				break;
 			default:
 				break;

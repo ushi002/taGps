@@ -22,7 +22,7 @@ typedef enum{
 void gps_initport(void);
 void gps_inituart(void);
 
-void gps_cmdtx(U8 * buff, U16 len);
+void gps_cmdtx(U8 * buff);
 U16 gps_rxchar(void);
 
 #endif /* GPSIF_H_ */

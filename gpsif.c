@@ -37,15 +37,18 @@ void gps_inituart(void)
 	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
 }
 
-void gps_cmdtx(U8 * buff, U16 len)
+void gps_cmdtx(U8 * buff)
 {
 	U16 i;
+	UbxPckHeader_s * pHead;
+
+	pHead = (UbxPckHeader_s *) buff;
 
 	//add sync bytes
 	buff[0] = 0xb5;
 	buff[1] = 0x62;
 
-	for(i = 0; i < len; i++)
+	for(i = 0; i < pHead->length+8; i++)
 	{
 		while(!(UCA1IFG & UCTXIFG));			//wait until UART0 TX buffer is empty
 		UCA1TXBUF = buff[i];
@@ -55,9 +58,10 @@ void gps_cmdtx(U8 * buff, U16 len)
 
 /** @brief Process received character from GPS
  *
- * @return - 0 done
+ * @return - 0 done *
  *         - 1 need one more call
- *         - 2 error */
+ *         - 2 ubx message
+ *         - 3 error */
 U16 gps_rxchar(void)
 {
 	static ubxstat_e ubxstat = ubxstat_idle;
@@ -121,12 +125,14 @@ U16 gps_rxchar(void)
 			//message is OK
 			dbg_ledok();
 			ubx_msgst(gpsumsg);
+			retVal = 2;
 		}
 		else
 		{
 			//message error
 			dbg_lederror();
-			retVal = 2;
+			dbg_txerrmsg(1);
+			retVal = 3;
 		}
 		ubxstat = ubxstat_idle;
 		break;

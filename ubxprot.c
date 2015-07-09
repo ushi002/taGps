@@ -29,7 +29,7 @@ void ubx_init(void)
     }
 }
 
-U8 ubx_poll_cfgnmea(U8 * msg)
+U16 ubx_poll_cfgnmea(U8 * msg)
 {
 	UbxPckHeader_s * pHead;
 
@@ -41,10 +41,10 @@ U8 ubx_poll_cfgnmea(U8 * msg)
 
 	ubx_addchecksum(msg);
 
-	return pHead->length + 8; //length of UBX_CFG_NMEA poll request (pck-length is zero)
+	return 0;
 }
 
-U8 ubx_poll_cfgprt(U8 * msg)
+U16 ubx_poll_cfgprt(U8 * msg)
 {
 	UbxPckHeader_s * pHead;
 
@@ -56,15 +56,17 @@ U8 ubx_poll_cfgprt(U8 * msg)
 
 	ubx_addchecksum(msg);
 
-	return pHead->length + 8; //length of UBX_CFG_PRT poll request (pck-length is zero)
+	return 0;
 }
 
-U8 ubx_set_cfgprt(U8 * msg)
+
+U16 ubx_set_cfgprt(U8 * msg)
 {
     I16 i, k;
     U16 message_found = 0;
     UbxPckHeader_s * pHead;
     UbxCfgPrt_s *pBody;
+    U16 retVal = 0;
 
     //find existing cfgprt message:
     for (i = MAX_MESSAGES_NUM-1; i >= 0; i--)
@@ -84,6 +86,8 @@ U8 ubx_set_cfgprt(U8 * msg)
     if (!message_found)
     {
         dbg_lederror();
+        dbg_txerrmsg(3);
+        retVal = 1;
     }
 
     pBody = (UbxCfgPrt_s *) (msg + sizeof(UbxPckHeader_s));
@@ -91,7 +95,7 @@ U8 ubx_set_cfgprt(U8 * msg)
 
     ubx_addchecksum(msg);
 
-    return pHead->length + 8; //length of UBX_CFG_PRT poll request (pck-length is zero)
+    return retVal;
 }
 
 /** @brief Add U-BLOX checksum to the end of message */
@@ -201,5 +205,6 @@ void ubx_msgst(U8 * pMsg)
     if (!message_found) //no matching message, no more free space...
     {
         dbg_lederror();
+        dbg_txerrmsg(2);
     }
 }
