@@ -35,22 +35,23 @@
 
 #define GPSRXCHAR	0x01
 #define BUTTON1		0x02
+#define CHECKACK	0x04
 
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
-	buttonStep_polling_cfg = 1,
-	buttonStep_set_cfg = 2
+	buttonStep_set_cfg = 1,
+	buttonStep_end = 2
 }ButtonStep_e;
 
 static U16 cmdToDo = 0;
 
-U8 messagetx[82];
-U8 messagerx[82];
-
-static U16 button_step = 0;
+static ButtonStep_e button_step = buttonStep_poll_cfg;
 
 int main(void)
 {
+	const Message_s * ubxmsg;
+	U16 rx_res;
+
 	WDTCTL = WDTPW | WDTHOLD;                 // Stop Watchdog
 
 	dbg_initport();
@@ -60,7 +61,7 @@ int main(void)
 	P6OUT  = BIT5 | BIT6;
 
 	P2DIR = 0xFF ^ BIT0;                      // Set all but P2.0 to output direction
-	P2REN = BIT0;                             // Select pull-up mode for P2.0
+	P2REN = BIT0;                             // Pull resistor enable for P2.0
 	P2OUT = 0;                                // Pull-down resistor on P2.0
 
 	P2IES = 0;                                // P2.0 Lo/Hi edge
@@ -93,57 +94,81 @@ int main(void)
 			switch (button_step)
 			{
 			case buttonStep_poll_cfg:
-				// poll NMEA configuration
-				if (!ubx_poll_cfgprt(messagetx))
-				//len = ubx_poll_cfgnmea(messagetx);
-				{
-					button_step = buttonStep_polling_cfg;
-				}
+				ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+				dbg_ledok();
 				break;
 			case buttonStep_set_cfg:
-				if(!ubx_set_cfgprt(messagetx))
-				{
-					button_step = buttonStep_poll_cfg;
-				}
+				ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
+				dbg_lederror();
 				break;
 			default:
 				break;
 			}
 
-			gps_cmdtx(messagetx);
 			cmdToDo &= ~BUTTON1;
+			//cmdToDo |= W4ACKMSG;						   //wait for answer
+			P2IE   = BIT0;                              // P2.0 interrupt enable
+			P2IFG &= ~BIT0;                           // Clear P2.0 IFG
+			gps_cmdtx(ubxmsg->pMsgBuff);
+			gps_uart_ie();
 		}
 
 		if(cmdToDo & GPSRXCHAR)
 		{
-			switch (gps_rxchar())
+			rx_res = gps_rxchar(ubxmsg);
+
+			if (rx_res)
+			{
+				//not expecting following message characters, stop listening
+				gps_uart_id();
+			}
+
+			switch (rx_res)
 			{
 			case 0:
-				//character (no ubx) processed successfuly
+				//character received, sleep until next comes
 				cmdToDo &= ~GPSRXCHAR;
 				break;
 			case 1:
-				//need one more loop
-				break;
-			case 2: //received ubx message
+				//not an ubx message, quit
 				cmdToDo &= ~GPSRXCHAR;
-				switch (button_step)
-				{
-				case buttonStep_polling_cfg:
-					button_step = buttonStep_set_cfg;
-					break;
-				default:
-					break;
-				}
+				break;
+			case 2:
+				//need one more loop to process the message
 				break;
 			case 3:
-				//error processing message, do it again
-				button_step = buttonStep_poll_cfg;
+				//error, message too long
+				cmdToDo &= ~GPSRXCHAR;
+				break;
+			case 4:
+				//wrong message checksum, start over
+				cmdToDo &= ~GPSRXCHAR;
+				break;
+			case 5:
+				//packet received succesfully, check message confirmation
+				cmdToDo |= CHECKACK;
 				cmdToDo &= ~GPSRXCHAR;
 				break;
 			default:
+				//unknown, start over
+				cmdToDo &= ~GPSRXCHAR;
 				break;
 			}
+		}
+
+		if(cmdToDo & CHECKACK)
+		{
+			if (ubxmsg->confirmed == true)
+			{
+				//move to next step
+				button_step++;
+				if (button_step == buttonStep_end)
+				{
+					//start again
+					button_step = buttonStep_poll_cfg;
+				}
+			}
+			cmdToDo &= ~CHECKACK;
 		}
 
 
@@ -220,7 +245,8 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 #error Compiler not supported!
 #endif
 {
-    P2IFG &= ~BIT0;                           // Clear P2.0 IFG
+	P2IE = 0;                              // P2.0 interrupt disable
+	P2IFG &= ~BIT0;                           // Clear P2.0 IFG
     cmdToDo |= BUTTON1;
     __bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
     __no_operation();

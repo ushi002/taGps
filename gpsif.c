@@ -7,7 +7,6 @@
 
 #include <msp430.h>
 #include "gpsif.h"
-#include "ubxprot.h"
 #include "dbgif.h"
 
 static U8 gpsumsg[82]; //GPS UBX message
@@ -34,7 +33,18 @@ void gps_inituart(void)
 	UCA1BR1 = 0x00;
 	UCA1MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
 	UCA1CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+}
+
+//Interrupt enable
+void gps_uart_ie(void)
+{
 	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
+}
+
+//Interrupt disable
+void gps_uart_id(void)
+{
+	UCA1IE &= ~UCRXIE;                         // Disable USCI_A1 RX interrupt
 }
 
 void gps_cmdtx(U8 * buff)
@@ -58,14 +68,17 @@ void gps_cmdtx(U8 * buff)
 
 /** @brief Process received character from GPS
  *
- * @return - 0 done *
- *         - 1 need one more call
- *         - 2 ubx message
- *         - 3 error */
-U16 gps_rxchar(void)
+ * @return  - 0 done *
+ * 			- 1 not a UBX message
+ *          - 2 need one more loop to process the packet
+ *          - 3 done w/ error: message too long
+ *          - 4 done w/ error: wrong message checksum
+ *          - 5 done, message received successfully */
+U16 gps_rxchar(const Message_s * lastMsg)
 {
 	static ubxstat_e ubxstat = ubxstat_idle;
 	static U16 ubxBytePos = 0;
+	static U16 charMissed = 0;
 
 	U8 rxChar;
 	U16 retVal = 0;
@@ -80,10 +93,16 @@ U16 gps_rxchar(void)
 			ubxstat = ubxstat_syncchar2;
 			ubxBytePos = 0;
 			gpsumsg[ubxBytePos++] = rxChar;
+			charMissed = 0;
 		}
 		else
 		{
-			dbg_txchar(&rxChar);
+			charMissed++;
+		}
+		if (charMissed > 200)
+		{
+			//can not find UBX message among receiving characters, quit
+			retVal = 1;
 		}
 		break;
 	case ubxstat_syncchar2:
@@ -95,9 +114,9 @@ U16 gps_rxchar(void)
 			ubxstat = ubxstat_msgid;
 			break;
 	case ubxstat_msgid:
-				gpsumsg[ubxBytePos++] = rxChar;
-				ubxstat = ubxstat_getlen;
-				break;
+			gpsumsg[ubxBytePos++] = rxChar;
+			ubxstat = ubxstat_getlen;
+			break;
 	case ubxstat_getlen:
 		gpsumsg[ubxBytePos++] = rxChar;
 		if (ubxBytePos == 6)
@@ -109,30 +128,30 @@ U16 gps_rxchar(void)
 		gpsumsg[ubxBytePos++] = rxChar;
 		if (ubxBytePos >= (pGpsUMsgHead->length + sizeof(UbxPckHeader_s) + sizeof(UbxPckChecksum_s)))
 		{
-			//process packet
 			ubxstat = ubxstat_process;
-			retVal = 1;
+			retVal = 2;
+
 		}
-		if (pGpsUMsgHead->length > 80)
+		if (pGpsUMsgHead->length > MAX_MESSAGEBUF_LEN)
 		{
+			retVal = 3;
 			ubxstat = ubxstat_idle;
 			__no_operation();
 		}
 		break;
 	case ubxstat_process:
+		//process packet
 		if (!ubx_checkmsg(gpsumsg))
 		{
 			//message is OK
-			dbg_ledok();
-			ubx_msgst(gpsumsg);
-			retVal = 2;
+			ubx_msgst(lastMsg, gpsumsg);
+			retVal = 5;
 		}
 		else
 		{
 			//message error
-			dbg_lederror();
 			dbg_txerrmsg(1);
-			retVal = 3;
+			retVal = 4;
 		}
 		ubxstat = ubxstat_idle;
 		break;

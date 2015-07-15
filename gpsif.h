@@ -8,6 +8,7 @@
 #ifndef GPSIF_H_
 #define GPSIF_H_
 #include "typedefs.h"
+#include "ubxprot.h"
 
 typedef enum{
 	ubxstat_idle = 0,
@@ -21,8 +22,10 @@ typedef enum{
 
 void gps_initport(void);
 void gps_inituart(void);
+void gps_uart_ie(void);
+void gps_uart_id(void);
 
 void gps_cmdtx(U8 * buff);
-U16 gps_rxchar(void);
+U16 gps_rxchar(const Message_s * lastMsg);
 
 #endif /* GPSIF_H_ */

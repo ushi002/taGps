@@ -10,6 +10,22 @@
 
 #include "typedefs.h"
 
+#define MAX_MESSAGEBUF_LEN    100
+
+typedef enum MessageId_t
+{
+	MessageIdNone = 0,
+	MessageIdPollCfgNmea = 1,
+	MessageIdPollCfgPrt = 2,
+	MessageIdSetCfgPrt = 3
+}MessageId_e;
+
+typedef enum BufferId_t
+{
+	BufferIdPollSetCfgNmea = 0,
+	BufferIdPollSetCfgPrt = 1
+}BufferId_e;
+
 typedef enum UbxClass_t
 {
 	ubxClassNav = 0x01,
@@ -25,6 +41,15 @@ typedef enum UbxClass_t
 	ubxClassLog = 0x21
 }UbxClass_e;
 
+typedef enum TypeOfConfirm_t
+{
+	TypeOfConfirmNone = 0,
+	/** Brief Ubx input message is acknowledged */
+	TypeOfConfirmAck = 1,
+	/** Brief Ubx polling request generates a message */
+	TypeOfConfirmMsg = 2
+}TypeOfConfirm_e;
+
 typedef enum UbxClassIdAck_t
 {
 	UbxClassIdAckAck = 0x01,
@@ -33,6 +58,7 @@ typedef enum UbxClassIdAck_t
 
 typedef enum UbxClassIdCfg_t
 {
+	UbxClassIdAck = 0x05,
 	UbxClassIdCfgPrt = 0x00,
 	UbxClassIdCfgNmea = 0x17
 }UbxClassIdCfg_e;
@@ -51,6 +77,12 @@ typedef struct UbxPckChecksum_t
 	U8  ckb;
 }UbxPckChecksum_s;
 
+typedef struct UbxAckMsg_t
+{
+	U8  ackMsgCls;
+	U8  ackMsgId;
+}UbxAckMsg_s;
+
 typedef struct UbxCfgPrt_t
 {
     U8  portId;
@@ -64,13 +96,24 @@ typedef struct UbxCfgPrt_t
     U16 reserved2;
 }UbxCfgPrt_s;
 
+typedef struct Message_t
+{
+	MessageId_e id;
+	TypeOfConfirm_e confirmType;
+	Boolean confirmed;
+	U8 * pMsgBuff;
+	UbxPckHeader_s * pHead;
+}Message_s;
 
 void ubx_init(void);
+const Message_s * ubx_get_msg(MessageId_e msgId);
 void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb);
 U16 ubx_poll_cfgnmea(U8 * msg);
 U16 ubx_poll_cfgprt(U8 * msg);
 U16 ubx_set_cfgprt(U8 * msg);
 
 U16 ubx_checkmsg(U8 * msg);
-void ubx_msgst(U8 * pMsg);
+void ubx_msgst(const Message_s * pLastMsg, const U8 * pNewMsg);
+void ubx_msg_polled(const Message_s * pLastMsg, const U8 * pNewMsgData);
+void ubx_msg_confirmed(const Message_s * pLastMsg);
 #endif /* UBXPROT_H_ */
