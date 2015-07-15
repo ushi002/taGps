@@ -20,6 +20,7 @@ static Message_s gMessage[MAX_MESSAGES_NUM];
 void ubx_init(void)
 {
     I16 i;
+    U16 messageId, bufferId;
 
     for (i = MAX_MESSAGES_NUM-1; i >= 0; i--)
     {
@@ -37,30 +38,42 @@ void ubx_init(void)
     gMessage[MessageIdPollCfgPrt].pMsgBuff = ubx_messages[BufferIdPollSetCfgPrt];
     gMessage[MessageIdPollCfgPrt].confirmType = TypeOfConfirmMsg;
     gMessage[MessageIdPollCfgPrt].pHead = (UbxPckHeader_s *) gMessage[MessageIdPollCfgPrt].pMsgBuff;
+    gMessage[MessageIdPollCfgPrt].pBody = (MessageBody_u *)  (gMessage[MessageIdPollCfgPrt].pMsgBuff + sizeof(UbxPckHeader_s));
 
     gMessage[MessageIdSetCfgPrt].id = MessageIdSetCfgPrt;
     gMessage[MessageIdSetCfgPrt].pMsgBuff = ubx_messages[BufferIdPollSetCfgPrt];
     gMessage[MessageIdSetCfgPrt].confirmType = TypeOfConfirmAck;
     gMessage[MessageIdSetCfgPrt].pHead = (UbxPckHeader_s *) gMessage[MessageIdSetCfgPrt].pMsgBuff;
+    gMessage[MessageIdSetCfgPrt].pBody = (MessageBody_u *) (gMessage[MessageIdSetCfgPrt].pMsgBuff + sizeof(UbxPckHeader_s));
+
+    messageId = MessageIdPollPvt;
+    bufferId = BufferIdPollPvt;
+    gMessage[messageId].id = (MessageId_e) messageId;
+    gMessage[messageId].pMsgBuff = ubx_messages[bufferId];
+    gMessage[messageId].confirmType = TypeOfConfirmMsg;
+    gMessage[messageId].pHead = (UbxPckHeader_s *) gMessage[messageId].pMsgBuff;
+    gMessage[messageId].pBody = (MessageBody_u *) (gMessage[messageId].pMsgBuff + sizeof(UbxPckHeader_s));
 }
 
 const Message_s * ubx_get_msg(MessageId_e msgId)
 {
 	Message_s * retVal;
 
+	retVal = &gMessage[msgId];
+
 	switch(msgId)
 	{
 	case MessageIdPollCfgNmea:
-		retVal = &gMessage[MessageIdPollCfgNmea];
 		ubx_poll_cfgnmea(retVal->pMsgBuff);
 		break;
 	case MessageIdPollCfgPrt:
-		retVal = &gMessage[MessageIdPollCfgPrt];
 		ubx_poll_cfgprt(retVal->pMsgBuff);
 		break;
 	case MessageIdSetCfgPrt:
-		retVal = &gMessage[MessageIdSetCfgPrt];
 		ubx_set_cfgprt(retVal->pMsgBuff);
+		break;
+	case MessageIdPollPvt:
+		ubx_poll_pvt(retVal->pMsgBuff);
 		break;
 	default:
 		retVal = MessageIdNone;
@@ -101,7 +114,7 @@ U16 ubx_poll_cfgprt(U8 * msg)
 	return 0;
 }
 
-
+//TODO: chybi definice tridy a delky, ktere se snad nacetlo pri pollingu...
 U16 ubx_set_cfgprt(U8 * msg)
 {
     UbxCfgPrt_s *pBody;
@@ -113,6 +126,21 @@ U16 ubx_set_cfgprt(U8 * msg)
     ubx_addchecksum(msg);
 
     return retVal;
+}
+
+U16 ubx_poll_pvt(U8 * msg)
+{
+	UbxPckHeader_s * pHead;
+
+	pHead = (UbxPckHeader_s *) msg;
+
+	pHead->ubxClass = ubxClassNav;
+	pHead->ubxId = 0x07; 			// NAV.PVT ID is 0x07
+	pHead->length = 0;
+
+    ubx_addchecksum(msg);
+
+    return 0;
 }
 
 /** @brief Add U-BLOX checksum to the end of message */
@@ -222,6 +250,18 @@ void ubx_msgst(const Message_s * pLastMsg, const U8 * pNewMsgData)
     		dbg_txerrmsg(5);
     	}
     	break;
+    case MessageIdPollPvt:
+    	//check if the same message came
+		if ((pNewHead->ubxClass == pLastHead->ubxClass) &&
+				(pNewHead->ubxId == pLastHead->ubxId))
+		{
+			ubx_msg_polled(pLastMsg, pNewMsgData);
+		}
+		else
+		{
+			dbg_txerrmsg(2);
+		}
+		break;
     default:
     	dbg_txerrmsg(2);
     	break;

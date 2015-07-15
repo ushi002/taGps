@@ -40,7 +40,8 @@
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
 	buttonStep_set_cfg = 1,
-	buttonStep_end = 2
+	buttonStep_poll_pvt = 2,
+	buttonStep_end = 3
 }ButtonStep_e;
 
 static U16 cmdToDo = 0;
@@ -99,6 +100,11 @@ int main(void)
 				break;
 			case buttonStep_set_cfg:
 				ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
+				dbg_lederror();
+				break;
+			case buttonStep_poll_pvt:
+				ubxmsg = ubx_get_msg(MessageIdPollPvt);
+				dbg_ledok();
 				dbg_lederror();
 				break;
 			default:

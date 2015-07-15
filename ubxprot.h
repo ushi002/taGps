@@ -17,13 +17,15 @@ typedef enum MessageId_t
 	MessageIdNone = 0,
 	MessageIdPollCfgNmea = 1,
 	MessageIdPollCfgPrt = 2,
-	MessageIdSetCfgPrt = 3
+	MessageIdSetCfgPrt = 3,
+	MessageIdPollPvt = 4,
 }MessageId_e;
 
 typedef enum BufferId_t
 {
 	BufferIdPollSetCfgNmea = 0,
-	BufferIdPollSetCfgPrt = 1
+	BufferIdPollSetCfgPrt = 1,
+	BufferIdPollPvt = 2
 }BufferId_e;
 
 typedef enum UbxClass_t
@@ -96,6 +98,54 @@ typedef struct UbxCfgPrt_t
     U16 reserved2;
 }UbxCfgPrt_s;
 
+typedef struct UbxNavPvt_t
+{
+    U32 iTOW;
+    U16 year;
+    U8  month;
+    U8  day;
+    U8  hour;
+    U8  min;
+    U8  sec;
+    U8  valid;
+    U32 tAcc;
+    I32 nano;
+    /* Brief Fixtype: - 0x00 = No Fix
+     * 		- 0x01 = Dead Reckoning only
+     * 		- 0x02 = 2D-Fix
+     * 		- 0x03 = 3D-Fix
+     * 		- 0x04 = GNSS + dead reckoning combined
+     * 		- 0x05 = Time only fix  */
+    U8  fixType;
+    U8  flags;
+    U8  reserved1;
+    U8  numSV;
+    I32 lon;
+    I32 lat;
+    I32 height;
+    I32 hMSL;
+    U32 hAcc;
+    U32 vAcc;
+    I32 velN;
+    I32 velE;
+    I32 velD;
+    I32 gSpeed;
+    I32 headMot;
+    U32 sAcc;
+    U32 headAcc;
+    U16 pDOP;
+    U16 reserved2a;
+    U32 reserved2b;
+    I32 HeadVeh;
+    U32 reseverd3;
+}UbxNavPvt_s;
+
+typedef union MessageBody_t
+{
+	UbxCfgPrt_s cfgPrt;
+	UbxNavPvt_s navPvt;
+}MessageBody_u;
+
 typedef struct Message_t
 {
 	MessageId_e id;
@@ -103,6 +153,7 @@ typedef struct Message_t
 	Boolean confirmed;
 	U8 * pMsgBuff;
 	UbxPckHeader_s * pHead;
+	MessageBody_u * pBody;
 }Message_s;
 
 void ubx_init(void);
@@ -111,6 +162,7 @@ void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb);
 U16 ubx_poll_cfgnmea(U8 * msg);
 U16 ubx_poll_cfgprt(U8 * msg);
 U16 ubx_set_cfgprt(U8 * msg);
+U16 ubx_poll_pvt(U8 * msg);
 
 U16 ubx_checkmsg(U8 * msg);
 void ubx_msgst(const Message_s * pLastMsg, const U8 * pNewMsg);
