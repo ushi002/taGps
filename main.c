@@ -84,6 +84,8 @@ int main(void)
 	gps_inituart();
 	ubx_init();
 
+	dbg_txmsg("\nWelcome to taGPS program. Now take a nap...\n");
+
 	__bis_SR_register(LPM3_bits | GIE);       // Enter LPM3, interrupts enabled
 	__no_operation();                         // For debugger
 	while (1)
