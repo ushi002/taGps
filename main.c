@@ -31,6 +31,7 @@
 #include "typedefs.h"
 #include "gpsif.h"
 #include "dbgif.h"
+#include "spiif.h"
 #include "ubxprot.h"
 
 #define GPSRXCHAR	0x01
@@ -46,12 +47,11 @@ typedef enum ButtonStep_t {
 
 static U16 cmdToDo = 0;
 
-static ButtonStep_e button_step = buttonStep_poll_cfg;
+static void init_configure_gps(void);
 
 int main(void)
 {
 	const Message_s * ubxmsg;
-	U16 rx_res;
 
 	WDTCTL = WDTPW | WDTHOLD;                 // Stop Watchdog
 
@@ -82,109 +82,43 @@ int main(void)
 
 	dbg_inituart();
 	gps_inituart();
+	spi_init();
 	ubx_init();
 
-	dbg_txmsg("\nWelcome to taGPS program. Now take a nap...\n");
+	dbg_ledsoff();
+
+	dbg_txmsg("\nWelcome to taGPS program\n");
+
+	init_configure_gps();
+
+	dbg_txmsg("\nInitialization done, let us sleep...");
 
 	__bis_SR_register(LPM3_bits | GIE);       // Enter LPM3, interrupts enabled
 	__no_operation();                         // For debugger
 	while (1)
 	{
+		//go sleep
+		__bis_SR_register(LPM3_bits);     // Enter LPM3, interrupts enabled
+		__no_operation();                       // For debugger
 
-		if(cmdToDo & BUTTON1)
+
+		if (cmdToDo & BUTTON1)
 		{
-			dbg_ledsoff();
-			switch (button_step)
-			{
-			case buttonStep_poll_cfg:
-				ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-				dbg_ledok();
-				break;
-			case buttonStep_set_cfg:
-				ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
-				dbg_lederror();
-				break;
-			case buttonStep_poll_pvt:
-				ubxmsg = ubx_get_msg(MessageIdPollPvt);
-				dbg_ledok();
-				dbg_lederror();
-				break;
-			default:
-				break;
-			}
-
 			cmdToDo &= ~BUTTON1;
-			//cmdToDo |= W4ACKMSG;						   //wait for answer
-			P2IE   = BIT0;                              // P2.0 interrupt enable
-			P2IFG &= ~BIT0;                           // Clear P2.0 IFG
+			dbg_txmsg("\nPoll GPS status");
+			ubxmsg = ubx_get_msg(MessageIdPollPvt);
 			gps_cmdtx(ubxmsg->pMsgBuff);
-			gps_uart_ie();
 		}
 
-		if(cmdToDo & GPSRXCHAR)
+		if (cmdToDo & GPSRXCHAR)
 		{
-			rx_res = gps_rxchar(ubxmsg);
-
-			if (rx_res)
+			cmdToDo &= ~GPSRXCHAR;
+			gps_rx_ubx_msg(ubxmsg);
+			if (ubxmsg->confirmed)
 			{
-				//not expecting following message characters, stop listening
-				gps_uart_id();
+				dbg_txmsg("\nConfirmed! ");
+				//displej_this(ubxmsg->pBody->navPvt.year);
 			}
-
-			switch (rx_res)
-			{
-			case 0:
-				//character received, sleep until next comes
-				cmdToDo &= ~GPSRXCHAR;
-				break;
-			case 1:
-				//not an ubx message, quit
-				cmdToDo &= ~GPSRXCHAR;
-				break;
-			case 2:
-				//need one more loop to process the message
-				break;
-			case 3:
-				//error, message too long
-				cmdToDo &= ~GPSRXCHAR;
-				break;
-			case 4:
-				//wrong message checksum, start over
-				cmdToDo &= ~GPSRXCHAR;
-				break;
-			case 5:
-				//packet received succesfully, check message confirmation
-				cmdToDo |= CHECKACK;
-				cmdToDo &= ~GPSRXCHAR;
-				break;
-			default:
-				//unknown, start over
-				cmdToDo &= ~GPSRXCHAR;
-				break;
-			}
-		}
-
-		if(cmdToDo & CHECKACK)
-		{
-			if (ubxmsg->confirmed == true)
-			{
-				//move to next step
-				button_step++;
-				if (button_step == buttonStep_end)
-				{
-					//start again
-					button_step = buttonStep_poll_cfg;
-				}
-			}
-			cmdToDo &= ~CHECKACK;
-		}
-
-
-		if (!cmdToDo)
-		{
-			//go sleep
-			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
-			__no_operation();                       // For debugger
 		}
 	}
 }
@@ -229,7 +163,7 @@ void __attribute__ ((interrupt(USCI_A1_VECTOR))) USCI_A1_ISR (void)
 	case USCI_NONE: break;
 	case USCI_UART_UCRXIFG:
 		//receving character
-		//P6OUT ^= BIT5 | BIT6;                      // Toggle LEDs
+		//UCA1IE &= ~UCRXIE; //disable interrupt
 		cmdToDo |= GPSRXCHAR;
 		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 		__no_operation();
@@ -253,9 +187,98 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 #error Compiler not supported!
 #endif
 {
-	P2IE = 0;                              // P2.0 interrupt disable
 	P2IFG &= ~BIT0;                           // Clear P2.0 IFG
-    cmdToDo |= BUTTON1;
+	cmdToDo |= BUTTON1;
     __bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
     __no_operation();
+}
+
+
+static void init_configure_gps(void)
+{
+	const Message_s * ubxmsg;
+	U16 rx_msg_res;
+	U16 init_cfg_try_num;
+	Boolean init_seq = true;
+
+	dbg_txmsg("\nPoll UBX CFG PORT message:\n");
+	//prepare port cfg msg
+	ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+	//send it
+	gps_cmdtx(ubxmsg->pMsgBuff);
+	//wait for answer:
+	init_cfg_try_num = 0;
+	while(init_seq)
+	{
+		rx_msg_res = gps_rx_ubx_msg(ubxmsg);
+		switch(rx_msg_res)
+		{
+		case 3:
+			dbg_txmsg("\nUBX message too long! Send again poll cfg...");
+			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+			gps_cmdtx(ubxmsg->pMsgBuff);
+			init_cfg_try_num++;
+			break;
+		case 4:
+			dbg_txmsg("\nUBX message CRC Error! Send again poll cfg...");
+			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+			gps_cmdtx(ubxmsg->pMsgBuff);
+			init_cfg_try_num++;
+			break;
+		case 5:
+			dbg_txmsg("\nUBX message successfully received!");
+			if (ubxmsg->confirmed)
+			{
+				init_seq = false;
+			}else
+			{
+				init_cfg_try_num = 0;
+				dbg_txmsg("\nUBX message not confirmed! Send again poll cfg...");
+				//prepare port cfg msg
+				ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+				gps_cmdtx(ubxmsg->pMsgBuff);
+			}
+			break;
+		default:
+			//waiting for next character
+			break;
+
+		}
+
+		if (init_cfg_try_num > 10)
+		{
+			dbg_lederror();
+			dbg_txmsg("\nMore than 10 UBX message errors! Send again poll cfg...");
+			init_cfg_try_num = 0;
+			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+			gps_cmdtx(ubxmsg->pMsgBuff);
+		}
+	}
+
+	dbg_txmsg("\n\nTurning off NMEA GPS port... ");
+	while(1)
+	{
+		ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
+		gps_cmdtx(ubxmsg->pMsgBuff);
+		while(1)
+		{
+			rx_msg_res = gps_rx_ubx_msg(ubxmsg);
+			if (rx_msg_res != 0)
+			{
+				//message received
+				break;
+			}
+		}
+		if (!ubxmsg->confirmed)
+		{
+			dbg_txmsg("\n\nMessage not confirmed, trying again... ");
+		}else
+		{
+			break;
+		}
+	}
+	dbg_txmsg("...NMEA GPS port is off.");
+	dbg_ledok();
+
+	gps_uart_ie(); //enable interrupt
 }
