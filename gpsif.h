@@ -25,6 +25,6 @@ void gps_uart_ie(void);
 void gps_uart_id(void);
 
 void gps_cmdtx(U8 * buff);
-U16 gps_rxchar(const Message_s * lastMsg);
+U16 gps_rx_ubx_msg(const Message_s * lastMsg);
 
 #endif /* GPSIF_H_ */
