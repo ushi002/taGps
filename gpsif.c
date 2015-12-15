@@ -66,6 +66,24 @@ void gps_cmdtx(U8 * buff)
 	//P6OUT ^= BIT5 | BIT6;                   // Toggle LEDs
 }
 
+/** @brief Check if a new char is in buffer
+ *
+ * @return  - false - no new character
+ * 			- true - new character loaded to rxChar */
+Boolean gps_newchar(U8 * rxChar)
+{
+	Boolean retVal = false;
+
+	if (UCA1IFG & UCRXIFG)
+	{
+		*rxChar = UCA1RXBUF;
+		retVal = true;
+	}
+
+	return retVal;
+}
+
+
 /** @brief Process received character from GPS
  *
  * @return  - 0 done *
