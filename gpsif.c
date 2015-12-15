@@ -86,9 +86,7 @@ Boolean gps_newchar(U8 * rxChar)
 
 /** @brief Process received character from GPS
  *
- * @return  - 0 done *
- * 			- 1 not a UBX message
- *          - 2 need one more loop to process the packet
+ * @return  - 0 done for now
  *          - 3 done w/ error: message too long
  *          - 4 done w/ error: wrong message checksum
  *          - 5 done, message received successfully */
@@ -96,12 +94,13 @@ U16 gps_rxchar(const Message_s * lastMsg)
 {
 	static ubxstat_e ubxstat = ubxstat_idle;
 	static U16 ubxBytePos = 0;
-	static U16 charMissed = 0;
-
-	U8 rxChar;
 	U16 retVal = 0;
+	U8 rxChar;
 
-	rxChar = UCA1RXBUF;
+	if (!gps_newchar(&rxChar))
+	{
+		return retVal;
+	}
 
 	switch (ubxstat)
 	{
@@ -111,21 +110,17 @@ U16 gps_rxchar(const Message_s * lastMsg)
 			ubxstat = ubxstat_syncchar2;
 			ubxBytePos = 0;
 			gpsumsg[ubxBytePos++] = rxChar;
-			charMissed = 0;
-		}
-		else
-		{
-			charMissed++;
-		}
-		if (charMissed > 200)
-		{
-			//can not find UBX message among receiving characters, quit
-			retVal = 1;
 		}
 		break;
 	case ubxstat_syncchar2:
-		gpsumsg[ubxBytePos++] = rxChar;
-		ubxstat = ubxstat_msgclass;
+		if (rxChar == 0x62)
+		{
+			gpsumsg[ubxBytePos++] = rxChar;
+			ubxstat = ubxstat_msgclass;
+		}else
+		{
+			ubxstat = ubxstat_idle;
+		}
 		break;
 	case ubxstat_msgclass:
 			gpsumsg[ubxBytePos++] = rxChar;
@@ -146,35 +141,28 @@ U16 gps_rxchar(const Message_s * lastMsg)
 		gpsumsg[ubxBytePos++] = rxChar;
 		if (ubxBytePos >= (pGpsUMsgHead->length + sizeof(UbxPckHeader_s) + sizeof(UbxPckChecksum_s)))
 		{
-			ubxstat = ubxstat_process;
-			retVal = 2;
+			//message loaded, process packet
+			if (!ubx_checkmsg(gpsumsg))
+			{
+				//message is OK
+				ubx_msgst(lastMsg, gpsumsg);
+				retVal = 5;
+			}
+			else
+			{
+				//message CRC error
+				retVal = 4;
+			}
 
 		}
 		if (pGpsUMsgHead->length > MAX_MESSAGEBUF_LEN)
 		{
 			retVal = 3;
-			ubxstat = ubxstat_idle;
 			__no_operation();
-		}
-		break;
-	case ubxstat_process:
-		//process packet
-		if (!ubx_checkmsg(gpsumsg))
-		{
-			//message is OK
-			ubx_msgst(lastMsg, gpsumsg);
-			retVal = 5;
-		}
-		else
-		{
-			//message error
-			dbg_txerrmsg(1);
-			retVal = 4;
 		}
 		ubxstat = ubxstat_idle;
 		break;
 	default: //error state
-		P6OUT ^= BIT5;	//toggle led
 		__no_operation();
 		break;
 	}
