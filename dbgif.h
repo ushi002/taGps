@@ -18,8 +18,5 @@ void dbg_inituart(void);
 void dbg_txchar(U8 * pChar);
 void dbg_txerrmsg(U8 err_code);
 void dbg_txmsg(char * msg);
-void dbg_ledok(void);
-void dbg_lederror(void);
-void dbg_ledsoff(void);
 
 #endif /* DBGIF_H_ */

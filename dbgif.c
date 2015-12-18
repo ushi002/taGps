@@ -85,18 +85,3 @@ void dbg_txmsg(char * msg)
 		UCA0TXBUF = msg[i];
 	}
 }
-
-void dbg_ledok(void)
-{
-	P6OUT |= BIT6;	//turn green led on
-}
-
-void dbg_lederror(void)
-{
-	P6OUT |= BIT5;	//turn red led on
-}
-
-void dbg_ledsoff(void)
-{
-	P6OUT &= ~(BIT6 | BIT5);	//turn on led
-}

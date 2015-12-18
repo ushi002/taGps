@@ -33,6 +33,7 @@
 #include "dbgif.h"
 #include "spiif.h"
 #include "ubxprot.h"
+#include "ledif.h"
 
 #define GPSRXCHAR	0x01
 #define BUTTON1		0x02
@@ -60,9 +61,7 @@ int main(void)
 
 	dbg_initport();
 	gps_initport();
-
-	P6DIR |= BIT5 | BIT6;                     // Set P6.0 to output direction
-	P6OUT  = BIT5 | BIT6;
+	led_initport();
 
 	P2DIR = 0xFF ^ BIT0;                      // Set all but P2.0 to output direction
 	P2REN = BIT0;                             // Pull resistor enable for P2.0
@@ -90,8 +89,6 @@ int main(void)
 	spi_init();
 	ubx_init();
 
-	dbg_ledsoff();
-
 	dbg_txmsg("\nWelcome to taGPS program\n");
 
 	dbg_txmsg("\nInitialization done, let us sleep...");
@@ -107,8 +104,7 @@ int main(void)
 		//is GPS powered?
 		if (P2IN & BIT3)
 		{
-			dbg_ledsoff();
-			dbg_ledok();
+			led_ok();
 			if (!gGpsInitialized)
 			{
 				init_configure_gps();
@@ -118,8 +114,7 @@ int main(void)
 		}else
 		{
 			//GPS is turned off
-			dbg_ledsoff();
-			dbg_lederror();
+			led_error();
 			gGpsInitialized = false;
 			gps_uart_id(); //disable interrupt
 		}
@@ -285,7 +280,7 @@ static void init_configure_gps(void)
 
 		if (init_cfg_try_num > 10)
 		{
-			dbg_lederror();
+			led_error();
 			dbg_txmsg("\nMore than 10 UBX message errors! Send again poll cfg...");
 			init_cfg_try_num = 0;
 			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
@@ -316,5 +311,5 @@ static void init_configure_gps(void)
 		}
 	}
 	dbg_txmsg("...NMEA GPS port is off.");
-	dbg_ledok();
+	led_ok();
 }
