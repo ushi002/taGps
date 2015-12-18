@@ -239,8 +239,11 @@ static void init_configure_gps(void)
 				gps_cmdtx(ubxmsg->pMsgBuff);
 			}
 			break;
-		default:
+		case 0:
 			//waiting for next character
+			break;
+		default:
+			dbg_txmsg("\nGPS unknown ERROR!");
 			break;
 
 		}
