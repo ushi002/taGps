@@ -71,14 +71,22 @@ void gps_cmdtx(U8 * buff)
  *
  * @return  - false - no new character
  * 			- true - new character loaded to rxChar */
-Boolean gps_newchar(U8 * rxChar)
+Boolean gps_newchar(U8 * rxChar, Boolean interruptCall)
 {
 	Boolean retVal = false;
 
-	if (UCA1IFG & UCRXIFG)
+	if (interruptCall)
 	{
 		*rxChar = UCA1RXBUF;
 		retVal = true;
+
+	}else
+	{
+		if (UCA1IFG & UCRXIFG)
+		{
+			*rxChar = UCA1RXBUF;
+			retVal = true;
+		}
 	}
 
 	return retVal;
@@ -98,7 +106,7 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 	U16 retVal = 0;
 	U8 rxChar;
 
-	if (!gps_newchar(&rxChar))
+	if (!gps_newchar(&rxChar, interruptCall))
 	{
 		return retVal;
 	}
