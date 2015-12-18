@@ -46,6 +46,7 @@ typedef enum ButtonStep_t {
 }ButtonStep_e;
 
 static U16 cmdToDo = 0;
+static Boolean gGpsInitialized = false;
 
 static void init_configure_gps(void);
 
@@ -70,6 +71,8 @@ int main(void)
 	P2IES = 0;                                // P2.0 Lo/Hi edge
 	P2IE = BIT0;                              // P2.0 interrupt enable
 	P2IFG = 0;                                // Clear all P2 interrupt flags
+
+	P2DIR &= BIT3;                           // Set P2.3 GPS PWR SENSE as input direction
 
 	// Disable the GPIO power-on default high-impedance mode to activate
 	// previously configured port settings
@@ -98,9 +101,28 @@ int main(void)
 	while (1)
 	{
 		//go sleep
-		__bis_SR_register(LPM3_bits);     // Enter LPM3, interrupts enabled
+		__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
 		__no_operation();                       // For debugger
 
+		//is GPS powered?
+		if (P2IN & BIT3)
+		{
+			dbg_ledsoff();
+			dbg_ledok();
+			if (!gGpsInitialized)
+			{
+				init_configure_gps();
+				gGpsInitialized = true;
+				gps_uart_ie(); //enable interrupt
+			}
+		}else
+		{
+			//GPS is turned off
+			dbg_ledsoff();
+			dbg_lederror();
+			gGpsInitialized = false;
+			gps_uart_id(); //disable interrupt
+		}
 
 		if (cmdToDo & BUTTON1)
 		{
