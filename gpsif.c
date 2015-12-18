@@ -91,7 +91,7 @@ Boolean gps_newchar(U8 * rxChar)
  *          - 3 done w/ error: message too long
  *          - 4 done w/ error: wrong message checksum
  *          - 5 done, message received successfully */
-U16 gps_rx_ubx_msg(const Message_s * lastMsg)
+U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 {
 	static ubxstat_e ubxstat = ubxstat_idle;
 	static U16 ubxBytePos = 0;

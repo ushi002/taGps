@@ -113,7 +113,7 @@ int main(void)
 		if (cmdToDo & GPSRXCHAR)
 		{
 			cmdToDo &= ~GPSRXCHAR;
-			gps_rx_ubx_msg(ubxmsg);
+			gps_rx_ubx_msg(ubxmsg, true);
 			if (ubxmsg->confirmed)
 			{
 				dbg_txmsg("\nConfirmed! ");
@@ -210,7 +210,7 @@ static void init_configure_gps(void)
 	init_cfg_try_num = 0;
 	while(init_seq)
 	{
-		rx_msg_res = gps_rx_ubx_msg(ubxmsg);
+		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
 		switch(rx_msg_res)
 		{
 		case 3:
@@ -265,7 +265,7 @@ static void init_configure_gps(void)
 		gps_cmdtx(ubxmsg->pMsgBuff);
 		while(1)
 		{
-			rx_msg_res = gps_rx_ubx_msg(ubxmsg);
+			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
 			if (rx_msg_res != 0)
 			{
 				//message received
