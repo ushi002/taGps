@@ -32,8 +32,8 @@ void gps_inituart(void)
 	UCA1BR0 = 52;                             // 8000000/16/9600
 	UCA1BR1 = 0x00;
 	UCA1MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
-	UCA1CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
 	UCA1IFG &= ~UCRXIFG; //clear previous received character
+	UCA1CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
 }
 
 //Interrupt enable
