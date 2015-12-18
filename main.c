@@ -53,7 +53,9 @@ int main(void)
 {
 	const Message_s * ubxmsg;
 
-	WDTCTL = WDTPW | WDTHOLD;                 // Stop Watchdog
+	//WDOG interrupt mode
+	WDTCTL = WDTPW | WDTSSEL__SMCLK | WDTTMSEL | WDTCNTCL | WDTIS__8192K;
+	SFRIE1 |= WDTIE;                          // Enable WDT interrupt
 
 	dbg_initport();
 	gps_initport();
@@ -119,6 +121,19 @@ int main(void)
 			}
 		}
 	}
+}
+
+// Watchdog Timer interrupt service routine
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector=WDT_VECTOR
+__interrupt void WDT_ISR(void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(WDT_VECTOR))) WDT_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+	__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 }
 
 //USCI_A0 interrupt routine
