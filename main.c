@@ -282,6 +282,4 @@ static void init_configure_gps(void)
 	}
 	dbg_txmsg("...NMEA GPS port is off.");
 	dbg_ledok();
-
-	gps_uart_ie(); //enable interrupt
 }
