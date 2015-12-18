@@ -17,6 +17,8 @@ void gps_initport(void)
 	// Configure GPIO
 	P3SEL0 |= BIT4 | BIT5;                    // USCI_A1 UART operation on P3
 	P3SEL1 &= ~(BIT4 | BIT5);
+
+	P2DIR &= BIT3;                           // Set P2.3 GPS PWR SENSE as input direction
 }
 
 void gps_inituart(void)
@@ -65,6 +67,22 @@ void gps_cmdtx(U8 * buff)
 		UCA1TXBUF = buff[i];
 	}
 	//P6OUT ^= BIT5 | BIT6;                   // Toggle LEDs
+}
+
+/** @brief Check if the GPS chip has power
+ *
+ * @return  - false - GPS chip has no power
+ * 			- true - GPS chip has power */
+Boolean gps_has_power(void)
+{
+	Boolean ret_val = false;
+
+	if (P2IN & BIT3)
+	{
+		ret_val = true;
+	}
+
+	return ret_val;
 }
 
 /** @brief Check if a new char is in buffer

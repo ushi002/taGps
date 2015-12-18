@@ -26,5 +26,6 @@ void gps_uart_id(void);
 
 void gps_cmdtx(U8 * buff);
 U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall);
+Boolean gps_has_power(void);
 
 #endif /* GPSIF_H_ */

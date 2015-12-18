@@ -71,7 +71,6 @@ int main(void)
 	P2IE = BIT0;                              // P2.0 interrupt enable
 	P2IFG = 0;                                // Clear all P2 interrupt flags
 
-	P2DIR &= BIT3;                           // Set P2.3 GPS PWR SENSE as input direction
 
 	// Disable the GPIO power-on default high-impedance mode to activate
 	// previously configured port settings
@@ -102,7 +101,7 @@ int main(void)
 		__no_operation();                       // For debugger
 
 		//is GPS powered?
-		if (P2IN & BIT3)
+		if (gps_has_power())
 		{
 			led_ok();
 			if (!gGpsInitialized)
