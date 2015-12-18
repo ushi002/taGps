@@ -89,8 +89,6 @@ int main(void)
 
 	dbg_txmsg("\nWelcome to taGPS program\n");
 
-	init_configure_gps();
-
 	dbg_txmsg("\nInitialization done, let us sleep...");
 
 	__bis_SR_register(LPM3_bits | GIE);       // Enter LPM3, interrupts enabled
