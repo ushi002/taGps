@@ -148,20 +148,21 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg)
 				//message is OK
 				ubx_msgst(lastMsg, gpsumsg);
 				retVal = 5;
+				ubxstat = ubxstat_idle;
 			}
 			else
 			{
 				//message CRC error
 				retVal = 4;
+				ubxstat = ubxstat_idle;
 			}
 
 		}
 		if (pGpsUMsgHead->length > MAX_MESSAGEBUF_LEN)
 		{
 			retVal = 3;
-			__no_operation();
+			ubxstat = ubxstat_idle;
 		}
-		ubxstat = ubxstat_idle;
 		break;
 	default: //error state
 		__no_operation();
