@@ -239,33 +239,22 @@ static void init_configure_gps(void)
 	init_cfg_try_num = 0;
 	while(init_seq)
 	{
+		init_cfg_try_num++;
 		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
 		switch(rx_msg_res)
 		{
 		case 3:
-			dbg_txmsg("\nUBX message too long! Send again poll cfg...");
-			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-			gps_cmdtx(ubxmsg->pMsgBuff);
-			init_cfg_try_num++;
+			dbg_txmsg("\nUBX message too long!");
 			break;
 		case 4:
-			dbg_txmsg("\nUBX message CRC Error! Send again poll cfg...");
-			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-			gps_cmdtx(ubxmsg->pMsgBuff);
-			init_cfg_try_num++;
+			dbg_txmsg("\nUBX message CRC Error!");
 			break;
 		case 5:
-			dbg_txmsg("\nUBX message successfully received!");
 			if (ubxmsg->confirmed)
 			{
 				init_seq = false;
-			}else
-			{
+				dbg_txmsg("\nUBX message confirmed.");
 				init_cfg_try_num = 0;
-				dbg_txmsg("\nUBX message not confirmed! Send again poll cfg...");
-				//prepare port cfg msg
-				ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-				gps_cmdtx(ubxmsg->pMsgBuff);
 			}
 			break;
 		case 0:
@@ -277,10 +266,10 @@ static void init_configure_gps(void)
 
 		}
 
-		if (init_cfg_try_num > 10)
+		if (init_cfg_try_num > (USHRT_MAX>>2))
 		{
 			led_error();
-			dbg_txmsg("\nMore than 10 UBX message errors! Send again poll cfg...");
+			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
 			init_cfg_try_num = 0;
 			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
 			gps_cmdtx(ubxmsg->pMsgBuff);
@@ -299,7 +288,17 @@ static void init_configure_gps(void)
 			{
 				//message received
 				break;
+			}else
+			{
+				init_cfg_try_num++;
+				if (init_cfg_try_num > (USHRT_MAX>>2))
+				{
+					//try again
+					init_cfg_try_num = 0;
+					break;
+				}
 			}
+
 		}
 		if (!ubxmsg->confirmed)
 		{
