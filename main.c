@@ -63,8 +63,8 @@ int main(void)
 	gps_initport();
 	led_initport();
 
-	P2DIR = 0xFF ^ BIT0;                      // Set all but P2.0 to output direction
-	P2REN = BIT0;                             // Pull resistor enable for P2.0
+	P2DIR = 0xFF ^ (BIT0 | BIT1);             // Set all but P2.0 and P2.1 to output direction
+	P2REN = BIT1 | BIT0;                      // Pull resistor enable for P2.0, 2.1
 	P2OUT = 0;                                // Pull-down resistor on P2.0
 
 	P2IES = 0;                                // P2.0 Lo/Hi edge
@@ -103,12 +103,13 @@ int main(void)
 		//is GPS powered?
 		if (gps_has_power())
 		{
-			led_ok();
 			if (!gGpsInitialized)
 			{
 				init_configure_gps();
 				gGpsInitialized = true;
+				led_ok();
 				gps_uart_ie(); //enable interrupt
+				P2IE |= BIT1;                              // P2.1 interrupt enable
 			}
 		}else
 		{
@@ -116,6 +117,7 @@ int main(void)
 			led_error();
 			gGpsInitialized = false;
 			gps_uart_id(); //disable interrupt
+			P2IE &= ~BIT1;                              // P2.1 interrupt disable
 		}
 
 		if (cmdToDo & BUTTON1)
