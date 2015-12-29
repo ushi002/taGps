@@ -218,10 +218,26 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 #error Compiler not supported!
 #endif
 {
-	P2IFG &= ~BIT0;                           // Clear P2.0 IFG
-	cmdToDo |= BUTTON1;
-    __bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
-    __no_operation();
+	switch(__even_in_range(P2IV, P2IV_P2IFG7))
+	{
+	case P2IV_NONE: break;
+	case P2IV_P2IFG0:
+		//P6OUT ^= BIT5;	//switch red led
+		cmdToDo |= BUTTON1;
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
+		break;
+	case P2IV_P2IFG1:
+		//GPS TIME PULSE:
+		P6OUT ^= BIT5;	//switch red led
+		break;
+	case P2IV_P2IFG2: break;
+	case P2IV_P2IFG3: break;
+	case P2IV_P2IFG4: break;
+	case P2IV_P2IFG5: break;
+	case P2IV_P2IFG6: break;
+	case P2IV_P2IFG7: break;
+	}
 }
 
 
