@@ -92,6 +92,8 @@ int main(void)
 	spi_init();
 	ubx_init();
 
+	//GPS not configured yet
+	led_error();
 	dbg_txmsg("\nWelcome to taGPS program\n");
 
 	dbg_txmsg("\nInitialization done, let us sleep...");
@@ -115,17 +117,20 @@ int main(void)
 				gGpsInitialized = true;
 				led_ok();
 				gps_uart_ie(); //enable interrupt
-				P2IE |= BIT1;                              // P2.1 interrupt enable
 			}
 		}else
 		{
-			//GPS is turned off
-			led_error();
-			gGpsInitialized = false;
-			gps_uart_id(); //disable interrupt
-			P2IE &= ~BIT1;                              // P2.1 interrupt disable
-			//enable PC communication
-			pcif_enif();
+			if (gGpsInitialized)
+			{
+				//GPS is turned off
+				led_error();
+				gGpsInitialized = false;
+				gps_uart_id(); //disable interrupt
+				P2IE &= ~BIT1;                              // P2.1 interrupt disable
+				//enable PC communication
+				pcif_enif();
+			}
+
 		}
 
 		if (cmdToDo & BUTTON1)
