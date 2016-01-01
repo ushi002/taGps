@@ -41,6 +41,8 @@ void gps_inituart(void)
 //Interrupt enable
 void gps_uart_ie(void)
 {
+	P2IFG &= ~BIT1;
+	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
 }
 
