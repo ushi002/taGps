@@ -19,4 +19,8 @@ void dbg_txchar(U8 * pChar);
 void dbg_txerrmsg(U8 err_code);
 void dbg_txmsg(char * msg);
 
+void pcif_rxchar(void);
+void pcif_enif(void);
+void pcif_disif(void);
+
 #endif /* DBGIF_H_ */

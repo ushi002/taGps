@@ -8,6 +8,12 @@
 #include <string.h>
 #include <msp430.h>
 #include "dbgif.h"
+#include "spiif.h"
+
+const U8 * gp_dbgif_buff;
+U16 g_dbgif_blen = 0;
+//when received uknown character then it is echoed
+U8 g_dbgif_echo = '0';
 
 static U8 err_msg[6][ERR_MSG_LEN] = {
 		"1234567890123456789012345678901234567890",
@@ -40,7 +46,6 @@ void dbg_inituart(void)
 	UCA0BR1 = 0x00;
 	UCA0MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
 	UCA0CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
-	//UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
 }
 
 void gps_txchars(U8 * buff, U16 len)
@@ -86,4 +91,38 @@ void dbg_txmsg(char * msg)
 		UCA0TXBUF = msg[i];
 		while(!(UCA0IFG & UCTXIFG)); //wait until UCA0 TX is ready for new char
 	}
+}
+
+void pcif_rxchar(void)
+{
+	U8 rxch;
+
+	rxch = UCA0RXBUF;
+
+	switch (rxch)
+	{
+	case 'd':
+		g_dbgif_blen = MEM_MAP_SIZE;
+		gp_dbgif_buff = spiif_pmmap;
+		break;
+	default:
+		g_dbgif_echo = rxch;
+		g_dbgif_blen = 1;
+		gp_dbgif_buff = &g_dbgif_echo;
+		break;
+	}
+	//transmit done interrupt flag to start new transmission:
+	UCA0IFG |= UCTXIFG;
+}
+
+/** Enable receiving PC UART commands telemetry */
+void pcif_enif(void)
+{
+	UCA0IE |= UCTXIE | UCRXIE;
+}
+
+/** Disable receiving PC UART commands and telemetry */
+void pcif_disif(void)
+{
+	UCA0IE &= ~(UCTXIE | UCRXIE);
 }
