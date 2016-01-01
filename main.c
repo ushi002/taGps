@@ -34,6 +34,7 @@
 #include "spiif.h"
 #include "ubxprot.h"
 #include "ledif.h"
+#include "butif.h"
 
 extern U8 * gp_dbgif_buff;
 extern U16 g_dbgif_blen;
@@ -67,14 +68,7 @@ int main(void)
 	gps_initport();
 	led_initport();
 
-	P2DIR = 0xFF ^ (BIT0 | BIT1);             // Set all but P2.0 and P2.1 to output direction
-	P2REN = BIT1 | BIT0;                      // Pull resistor enable for P2.0, 2.1
-	P2OUT = 0;                                // Pull-down resistor on P2.0
-
-	P2IES = 0;                                // P2.0 Lo/Hi edge
-	P2IE = BIT0;                              // P2.0 interrupt enable
-	P2IFG = 0;                                // Clear all P2 interrupt flags
-
+	but_init();
 
 	// Disable the GPIO power-on default high-impedance mode to activate
 	// previously configured port settings
@@ -105,6 +99,9 @@ int main(void)
 		//go sleep
 		__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
 		__no_operation();                       // For debugger
+
+		//check buttons
+		but_check();
 
 		//is GPS powered?
 		if (gps_has_power())
