@@ -28,6 +28,16 @@ static inline void led_error(void)
 	P6OUT |= BIT5;	//turn red led on
 }
 
+static inline void led_swap_red(void)
+{
+	P6OUT ^= BIT5;	//turn red led on
+}
+
+static inline void led_swap_green(void)
+{
+	P6OUT ^= BIT6;	//turn red led on
+}
+
 /*
 void led_ok(void);
 void led_error(void);
