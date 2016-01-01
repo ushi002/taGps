@@ -35,9 +35,13 @@
 #include "ubxprot.h"
 #include "ledif.h"
 
+extern U8 * gp_dbgif_buff;
+extern U16 g_dbgif_blen;
+
 #define GPSRXCHAR	0x01
 #define BUTTON1		0x02
 #define CHECKACK	0x04
+#define PC_UART_RX	0x08
 
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
@@ -103,6 +107,8 @@ int main(void)
 		//is GPS powered?
 		if (gps_has_power())
 		{
+			//disable PC communication
+			pcif_disif();
 			if (!gGpsInitialized)
 			{
 				init_configure_gps();
@@ -118,6 +124,8 @@ int main(void)
 			gGpsInitialized = false;
 			gps_uart_id(); //disable interrupt
 			P2IE &= ~BIT1;                              // P2.1 interrupt disable
+			//enable PC communication
+			pcif_enif();
 		}
 
 		if (cmdToDo & BUTTON1)
@@ -137,6 +145,12 @@ int main(void)
 				dbg_txmsg("\nConfirmed! ");
 				//displej_this(ubxmsg->pBody->navPvt.year);
 			}
+		}
+
+		if (cmdToDo & PC_UART_RX)
+		{
+			cmdToDo &= ~PC_UART_RX;
+			pcif_rxchar();
 		}
 	}
 }
@@ -169,11 +183,16 @@ void __attribute__ ((interrupt(USCI_A0_VECTOR))) USCI_A0_ISR (void)
 	case USCI_NONE: break;
 	case USCI_UART_UCRXIFG:
 		P6OUT ^= BIT5 | BIT6;                      // Toggle LEDs
-		while(!(UCA0IFG&UCTXIFG));
-		UCA0TXBUF = UCA0RXBUF;
+		cmdToDo |= PC_UART_RX;
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 		__no_operation();
 		break;
-	case USCI_UART_UCTXIFG: break;
+	case USCI_UART_UCTXIFG:
+		if (g_dbgif_blen > 0)
+		{
+			UCA0TXBUF = gp_dbgif_buff[--g_dbgif_blen];
+		}
+		break;
 	case USCI_UART_UCSTTIFG: break;
 	case USCI_UART_UCTXCPTIFG: break;
 	}
