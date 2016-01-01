@@ -72,16 +72,18 @@ void dbg_txmsg(char * msg)
 
 	len = strlen(msg);
 
+	while(UCA0STATW & UCBUSY); //wait until receiving or transmitting is done
+
 	for (i = 0; i < len; i++)
 	{
-		while(!(UCA0IFG&UCTXIFG)); //wait until UCA0 TX empty
 		if (msg[i] == '\n')
 		{
 			//when a new line requested
 			//insert carriage return
 			UCA0TXBUF = '\r';
-			while(!(UCA0IFG&UCTXIFG)); //wait until UCA0 TX empty
+			while(!(UCA0IFG & UCTXIFG)); //wait until UCA0 TX is ready for new char
 		}
 		UCA0TXBUF = msg[i];
+		while(!(UCA0IFG & UCTXIFG)); //wait until UCA0 TX is ready for new char
 	}
 }
