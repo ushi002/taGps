@@ -9,6 +9,9 @@
 #include <msp430.h>
 #include "spiif.h"
 
+static U8 memory_map[MEM_MAP_SIZE] = "Ahoj\r\n";
+const U8 * spiif_pmmap;
+
 static void initport(void);
 
 static void initport(void)
@@ -43,6 +46,8 @@ void spi_init(void)
 
 	UCB0CTLW0 &= ~UCSWRST;                    // **Initialize USCI state machine**
 	//UCB0IE |= UCRXIE;                         // Enable USCI_B0 RX interrupt
+
+	spiif_pmmap = memory_map;
 }
 
 //INTERRUPT ROUTINE:
