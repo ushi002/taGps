@@ -40,7 +40,7 @@ extern U8 * gp_dbgif_buff;
 extern U16 g_dbgif_blen;
 
 #define GPSRXCHAR	0x01
-#define BUTTON1		0x02
+#define GPS_PULSE	0x02
 #define CHECKACK	0x04
 #define PC_UART_RX	0x08
 
@@ -134,9 +134,9 @@ int main(void)
 
 		}
 
-		if (cmdToDo & BUTTON1)
+		if (cmdToDo & GPS_PULSE)
 		{
-			cmdToDo &= ~BUTTON1;
+			cmdToDo &= ~GPS_PULSE;
 			dbg_txmsg("\nPoll GPS status");
 			ubxmsg = ubx_get_msg(MessageIdPollPvt);
 			gps_cmdtx(ubxmsg->pMsgBuff);
@@ -176,7 +176,9 @@ void __attribute__ ((interrupt(WDT_VECTOR))) WDT_ISR (void)
 #error Compiler not supported!
 #endif
 {
-	__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
+	//set GPS PULSE artifficialy
+	P2IFG |= BIT1;
+	__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 }
 
 //USCI_A0 interrupt routine
