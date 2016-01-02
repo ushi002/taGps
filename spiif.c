@@ -9,6 +9,12 @@
 #include <msp430.h>
 #include "spiif.h"
 
+		//23*4 bajtu je NAV message...
+		//264 bajtu/stranka
+		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
+
+static U8 mem_page[MEM_PAGE_SIZE];
+
 static U8 memory_map[MEM_MAP_SIZE] = "Ahoj\r\n";
 const U8 * spiif_pmmap;
 
