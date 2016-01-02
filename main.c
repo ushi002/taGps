@@ -88,6 +88,7 @@ int main(void)
 
 	//GPS not configured yet
 	led_error();
+	__bis_SR_register(GIE);       // Enable interrupts (needed for uart tx)
 	dbg_txmsg("\nWelcome to taGPS program\n");
 
 	dbg_txmsg("\nInitialization done, let us sleep...");
@@ -96,9 +97,12 @@ int main(void)
 	__no_operation();                         // For debugger
 	while (1)
 	{
-		//go sleep
-		__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
-		__no_operation();                       // For debugger
+		//if nothing to do fall asleep
+		if (!cmdToDo)
+		{
+			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
+			__no_operation();                       // For debugger
+		}
 
 		//check buttons
 		but_check();
@@ -117,6 +121,8 @@ int main(void)
 			}
 		}else
 		{
+			//enable PC communication
+			pcif_enif();
 			if (gGpsInitialized)
 			{
 				//GPS is turned off
@@ -124,8 +130,6 @@ int main(void)
 				gGpsInitialized = false;
 				gps_uart_id(); //disable interrupt
 				P2IE &= ~BIT1;                              // P2.1 interrupt disable
-				//enable PC communication
-				pcif_enif();
 			}
 
 		}
@@ -219,14 +223,9 @@ void __attribute__ ((interrupt(USCI_A1_VECTOR))) USCI_A1_ISR (void)
 	{
 	case USCI_NONE: break;
 	case USCI_UART_UCRXIFG:
-		//receving character
-		//UCA1IE &= ~UCRXIE; //disable interrupt
 		cmdToDo |= GPSRXCHAR;
 		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 		__no_operation();
-//		while(!(UCA0IFG&UCTXIFG));
-//		UCA0TXBUF = UCA1RXBUF;
-//		__no_operation();
 		break;
 	case USCI_UART_UCTXIFG: break;
 	case USCI_UART_UCSTTIFG: break;
@@ -248,10 +247,6 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	{
 	case P2IV_NONE: break;
 	case P2IV_P2IFG0:
-		//P6OUT ^= BIT5;	//switch red led
-		cmdToDo |= BUTTON1;
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
-		__no_operation();
 		break;
 	case P2IV_P2IFG1:
 		//GPS TIME PULSE:
