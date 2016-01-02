@@ -10,8 +10,13 @@
 #include "dbgif.h"
 #include "spiif.h"
 
+#define MSG_SIZE 512
+
+static U8 msg_buff[MSG_SIZE];
+
 const U8 * gp_dbgif_buff;
-U16 g_dbgif_blen = 0;
+volatile U16 g_dbgif_binp = 0;
+volatile U16 g_dbgif_bout = 0;
 //when received uknown character then it is echoed
 U8 g_dbgif_echo = '0';
 
@@ -23,6 +28,45 @@ static U8 err_msg[6][ERR_MSG_LEN] = {
 		"[!!] Received ACK from unknown MSG!   \n",
 		"[!!] Expected ACK, but not received!  \n"
 };
+
+inline static void buffo_inc(void)
+{
+	g_dbgif_bout++;
+	if (g_dbgif_bout == MSG_SIZE)
+	{
+		g_dbgif_bout = 0;
+	}
+}
+
+U8 buff_getch(void)
+{
+	U8 ret;
+
+	ret = msg_buff[g_dbgif_bout];
+	buffo_inc();
+
+	return ret;
+}
+
+Boolean buff_empty(void)
+{
+	Boolean ret = false;
+
+	if (g_dbgif_binp == g_dbgif_bout)
+	{
+		ret = true;
+	}
+	return ret;
+}
+
+inline static void buffi_inc(void)
+{
+	g_dbgif_binp++;
+	if (g_dbgif_binp == MSG_SIZE)
+	{
+		g_dbgif_binp = 0;
+	}
+}
 
 void dbg_initport(void)
 {
@@ -46,6 +90,10 @@ void dbg_inituart(void)
 	UCA0BR1 = 0x00;
 	UCA0MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
 	UCA0CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+
+	UCA0IE |= UCTXIE;
+
+	gp_dbgif_buff = msg_buff;
 }
 
 void gps_txchars(U8 * buff, U16 len)
@@ -77,38 +125,36 @@ void dbg_txmsg(char * msg)
 
 	len = strlen(msg);
 
-	while(UCA0STATW & UCBUSY); //wait until receiving or transmitting is done
+	//while(!buff_empty());
 
 	for (i = 0; i < len; i++)
 	{
+		msg_buff[g_dbgif_binp] = msg[i];
+		buffi_inc();
 		if (msg[i] == '\n')
 		{
 			//when a new line requested
 			//insert carriage return
-			UCA0TXBUF = '\r';
-			while(!(UCA0IFG & UCTXIFG)); //wait until UCA0 TX is ready for new char
+			msg_buff[g_dbgif_binp] = '\r';
+			buffi_inc();
+
 		}
-		UCA0TXBUF = msg[i];
-		while(!(UCA0IFG & UCTXIFG)); //wait until UCA0 TX is ready for new char
 	}
+
+	//start transmission:
+	//UCA0IFG |= UCTXIFG;
 }
 
 void pcif_rxchar(void)
 {
-	U8 rxch;
+	char rxch;
 
 	rxch = UCA0RXBUF;
 
 	switch (rxch)
 	{
-	case 'd':
-		g_dbgif_blen = MEM_MAP_SIZE;
-		gp_dbgif_buff = spiif_pmmap;
-		break;
 	default:
-		g_dbgif_echo = rxch;
-		g_dbgif_blen = 1;
-		gp_dbgif_buff = &g_dbgif_echo;
+		dbg_txmsg(&rxch);
 		break;
 	}
 	//transmit done interrupt flag to start new transmission:
@@ -118,11 +164,11 @@ void pcif_rxchar(void)
 /** Enable receiving PC UART commands telemetry */
 void pcif_enif(void)
 {
-	UCA0IE |= UCTXIE | UCRXIE;
+	UCA0IE |= UCRXIE;
 }
 
 /** Disable receiving PC UART commands and telemetry */
 void pcif_disif(void)
 {
-	UCA0IE &= ~(UCTXIE | UCRXIE);
+	UCA0IE &= ~(UCRXIE);
 }

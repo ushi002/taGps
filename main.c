@@ -154,6 +154,11 @@ int main(void)
 			cmdToDo &= ~PC_UART_RX;
 			pcif_rxchar();
 		}
+
+		if (!buff_empty() && !(UCA0STATW & UCBUSY))
+		{
+			UCA0TXBUF = buff_getch();
+		}
 	}
 }
 
@@ -190,9 +195,9 @@ void __attribute__ ((interrupt(USCI_A0_VECTOR))) USCI_A0_ISR (void)
 		__no_operation();
 		break;
 	case USCI_UART_UCTXIFG:
-		if (g_dbgif_blen > 0)
+		if (!buff_empty())
 		{
-			UCA0TXBUF = gp_dbgif_buff[--g_dbgif_blen];
+			UCA0TXBUF = buff_getch();
 		}
 		break;
 	case USCI_UART_UCSTTIFG: break;

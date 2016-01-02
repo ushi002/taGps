@@ -11,6 +11,8 @@
 
 #define ERR_MSG_LEN 	40
 
+U8 buff_getch(void);
+Boolean buff_empty(void);
 
 void dbg_initport(void);
 void dbg_inituart(void);
