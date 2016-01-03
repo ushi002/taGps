@@ -47,7 +47,7 @@ void spi_init(void)
 	UCB0CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
 	//UCB0CTLW0 |= UCSSEL__ACLK;                // ACLK
 	// SMCLK = 8Mz, divider is 4, SPI speed => 2MHz:
-	UCB0BR0 = 4;
+	UCB0BR0 = 16;
 	UCB0BR1 = 0x00;
 
 	UCB0CTLW0 &= ~UCSWRST;                    // **Initialize USCI state machine**
