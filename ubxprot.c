@@ -13,9 +13,9 @@ void ubx_addchecksum(U8 * msg);
 #define MAX_MESSAGES_NUM    10
 #define MAX_MESSAGEBUF_NUM    5
 
-static U8 ubx_messages[MAX_MESSAGEBUF_NUM][MAX_MESSAGEBUF_LEN];
+static U8 ubx_messages[MAX_MESSAGEBUF_NUM][MAX_MESSAGEBUF_LEN] __attribute__((section(".TI.persistent")));
 
-static Message_s gMessage[MAX_MESSAGES_NUM];
+static Message_s gMessage[MAX_MESSAGES_NUM] __attribute__((section(".TI.persistent")));
 
 void ubx_init(void)
 {
