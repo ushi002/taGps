@@ -101,6 +101,11 @@ int main(void)
 	while (1)
 	{
 
+		if (!gps_txempty() && !(UCA1STATW & UCBUSY))
+		{
+			UCA1TXBUF = gps_txbpop();
+		}
+
 		if (!buff_empty() && !(UCA0STATW & UCBUSY))
 		{
 			UCA0TXBUF = buff_pop();
@@ -238,7 +243,12 @@ void __attribute__ ((interrupt(USCI_A1_VECTOR))) USCI_A1_ISR (void)
 		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 		__no_operation();
 		break;
-	case USCI_UART_UCTXIFG: break;
+	case USCI_UART_UCTXIFG:
+		if (!gps_txempty())
+		{
+			UCA1TXBUF = gps_txbpop();
+		}
+		break;
 	case USCI_UART_UCSTTIFG: break;
 	case USCI_UART_UCTXCPTIFG: break;
 	}
@@ -315,7 +325,7 @@ static void init_configure_gps(void)
 	//prepare port cfg msg
 	ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
 	//send it
-	gps_cmdtx(ubxmsg->pMsgBuff);
+	gps_initcmdtx(ubxmsg->pMsgBuff);
 	//wait for answer:
 	init_cfg_try_num = 0;
 	while(init_seq)
@@ -353,7 +363,7 @@ static void init_configure_gps(void)
 			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
 			init_cfg_try_num = 0;
 			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-			gps_cmdtx(ubxmsg->pMsgBuff);
+			gps_initcmdtx(ubxmsg->pMsgBuff);
 		}
 	}
 
@@ -361,7 +371,7 @@ static void init_configure_gps(void)
 	while(1)
 	{
 		ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
-		gps_cmdtx(ubxmsg->pMsgBuff);
+		gps_initcmdtx(ubxmsg->pMsgBuff);
 		while(1)
 		{
 			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);

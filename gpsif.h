@@ -10,6 +10,8 @@
 #include "typedefs.h"
 #include "ubxprot.h"
 
+#define TXB_SIZE 	MAX_MESSAGEBUF_LEN
+
 typedef enum{
 	ubxstat_idle = 0,
 	ubxstat_syncchar2 = 1,
@@ -24,8 +26,37 @@ void gps_inituart(void);
 void gps_uart_ie(void);
 void gps_uart_id(void);
 
+void gps_initcmdtx(U8 * buff);
 void gps_cmdtx(U8 * buff);
 U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall);
 Boolean gps_has_power(void);
+
+extern U8 * pgps_txbuf;
+extern U8 * pgps_txput;
+extern U8 * pgps_txpop;
+
+inline Boolean gps_txempty(void)
+{
+	Boolean ret = false;
+
+	if (*pgps_txput == *pgps_txpop)
+	{
+		ret = true;
+	}
+	return ret;
+}
+
+inline U8 gps_txbpop(void)
+{
+	U8 ret;
+
+	ret = pgps_txbuf[*pgps_txpop];
+	(*pgps_txpop)++;
+	if (*pgps_txpop == TXB_SIZE)
+	{
+		*pgps_txpop = 0;
+	}
+	return ret;
+}
 
 #endif /* GPSIF_H_ */

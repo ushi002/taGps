@@ -9,6 +9,15 @@
 #include "gpsif.h"
 #include "dbgif.h"
 
+static U8 txbuff[TXB_SIZE];
+
+static U8 g_txput = 0;
+static U8 g_txpop = 0;
+
+U8 * pgps_txbuf;
+U8 * pgps_txput;
+U8 * pgps_txpop;
+
 static U8 gpsumsg[82]; //GPS UBX message
 static UbxPckHeader_s * pGpsUMsgHead = (UbxPckHeader_s *) gpsumsg;
 
@@ -36,6 +45,11 @@ void gps_inituart(void)
 	UCA1MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
 	UCA1IFG &= ~UCRXIFG; //clear previous received character
 	UCA1CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+
+
+	pgps_txbuf = txbuff;
+	pgps_txput = &g_txput;
+	pgps_txpop = &g_txpop;
 }
 
 //Interrupt enable
@@ -44,14 +58,25 @@ void gps_uart_ie(void)
 	P2IFG &= ~BIT1;
 	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
+	UCA1IE |= UCTXIE;
 }
 
 //Interrupt disable
 void gps_uart_id(void)
 {
 	UCA1IE &= ~UCRXIE;                         // Disable USCI_A1 RX interrupt
+	UCA1IE &= ~UCTXIE;
 }
 
+static void txb_push(U8 * ch)
+{
+	txbuff[g_txput++] = *ch;
+	if (g_txput == TXB_SIZE)
+	{
+		g_txput = 0;
+	}
+
+}
 void gps_cmdtx(U8 * buff)
 {
 	U16 i;
@@ -65,10 +90,26 @@ void gps_cmdtx(U8 * buff)
 
 	for(i = 0; i < pHead->length+8; i++)
 	{
-		while(!(UCA1IFG & UCTXIFG));			//wait until UART0 TX buffer is empty
+		txb_push(&buff[i]);
+	}
+}
+
+void gps_initcmdtx(U8 * buff)
+{
+	U16 i;
+	UbxPckHeader_s * pHead;
+
+	pHead = (UbxPckHeader_s *) buff;
+
+	//add sync bytes
+	buff[0] = 0xb5;
+	buff[1] = 0x62;
+
+	for(i = 0; i < pHead->length+8; i++)
+	{
+		while(!(UCA1IFG & UCTXIFG));                    //wait until UART0 TX buffer is empty
 		UCA1TXBUF = buff[i];
 	}
-	//P6OUT ^= BIT5 | BIT6;                   // Toggle LEDs
 }
 
 /** @brief Check if the GPS chip has power
