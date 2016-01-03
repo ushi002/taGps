@@ -203,7 +203,7 @@ U16 ubx_checkmsg(U8 * pMsg)
 
 	ubx_genchecksum(buffForChecksum, checksumByteRange, &cs.cka, &cs.ckb);
 
-	if ((pMsgCs->cka != cs.cka) || (pMsgCs->cka != cs.cka))
+	if ((pMsgCs->cka != cs.cka) || (pMsgCs->ckb != cs.ckb))
 	{
 		retVal = 1;
 	}
