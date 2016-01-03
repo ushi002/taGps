@@ -13,12 +13,12 @@
 static U8 msg_buff[MSG_SIZE];
 
 const U8 * gp_dbgif_buff;
-U16 g_txbput = 0;
-U16 g_txbpop = 0;
+U8 g_txbput = 0;
+U8 g_txbpop = 0;
 
 U8 * gp_txbuff;
-U16 * pg_txbput;
-U16 * pg_txbpop;
+U8 * pg_txbput;
+U8 * pg_txbpop;
 
 
 //when received uknown character then it is echoed

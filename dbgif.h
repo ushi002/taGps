@@ -27,8 +27,8 @@ void pcif_disif(void);
 
 
 extern U8 * gp_txbuff;
-extern U16 * pg_txbput;
-extern U16 * pg_txbpop;
+extern U8 * pg_txbput;
+extern U8 * pg_txbpop;
 
 inline Boolean buff_empty(void)
 {
