@@ -118,9 +118,6 @@ int main(void)
 			__no_operation();                       // For debugger
 		}
 
-		//check buttons
-		but_check();
-
 		//is GPS powered?
 		if (gps_has_power())
 		{
@@ -145,7 +142,8 @@ int main(void)
 				gps_uart_id(); //disable interrupt
 				P2IE &= ~BIT1;                              // P2.1 interrupt disable
 			}
-
+			//check buttons
+			but_check();
 		}
 
 		if (cmdToDo & GPS_PULSE)
