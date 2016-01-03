@@ -10,7 +10,7 @@
 #include "dbgif.h"
 #include "spiif.h"
 
-#define MSG_SIZE 512
+#define MSG_SIZE 128
 
 static U8 msg_buff[MSG_SIZE];
 
