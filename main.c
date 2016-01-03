@@ -50,7 +50,10 @@ typedef enum ButtonStep_t {
 	buttonStep_poll_pvt = 2,
 	buttonStep_end = 3
 }ButtonStep_e;
-
+//#pragma PERSISTENT(memGpsStatMap)
+//32768 pages 64MBit ADESTO memory
+//U8 memGpsStatMap[32786] __attribute__((section(".TI.persistent")));
+//#pragma PERSISTENT(cmdToDo)
 static U16 cmdToDo = 0;
 static Boolean gGpsInitialized = false;
 
@@ -88,7 +91,7 @@ int main(void)
 
 	//GPS not configured yet
 	led_error();
-	__bis_SR_register(GIE);       // Enable interrupts (needed for uart tx)
+
 	dbg_txmsg("\nWelcome to taGPS program\n");
 
 	dbg_txmsg("\nInitialization done, let us sleep...");
@@ -97,6 +100,17 @@ int main(void)
 	__no_operation();                         // For debugger
 	while (1)
 	{
+
+		if (!buff_empty() && !(UCA0STATW & UCBUSY))
+		{
+			UCA0TXBUF = buff_getch();
+		}
+
+		if (!spi_txempty() && !(UCB0STATW & UCBUSY))
+		{
+			UCB0TXBUF = spi_txchpop();
+		}
+
 		//if nothing to do fall asleep
 		if (!cmdToDo)
 		{
@@ -149,6 +163,7 @@ int main(void)
 			if (ubxmsg->confirmed)
 			{
 				dbg_txmsg("\nConfirmed! ");
+				spiif_storeubx(ubxmsg);
 				//displej_this(ubxmsg->pBody->navPvt.year);
 			}
 		}
@@ -157,11 +172,7 @@ int main(void)
 		{
 			cmdToDo &= ~PC_UART_RX;
 			pcif_rxchar();
-		}
-
-		if (!buff_empty() && !(UCA0STATW & UCBUSY))
-		{
-			UCA0TXBUF = buff_getch();
+			spi_getstat();
 		}
 	}
 }
@@ -253,6 +264,12 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	case P2IV_P2IFG1:
 		//GPS TIME PULSE:
 		P6OUT ^= BIT5;	//switch red led
+		cmdToDo |= GPS_PULSE;
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
+		//23*4 bajtu je NAV message...
+		//264 bajtu/stranka
+		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
 		break;
 	case P2IV_P2IFG2: break;
 	case P2IV_P2IFG3: break;
@@ -263,6 +280,31 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	}
 }
 
+//SPI INTERRUPT ROUTINE:
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector=USCI_B0_VECTOR
+__interrupt void USCI_B0_ISR(void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(USCI_B0_VECTOR))) USCI_B0_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+  switch(__even_in_range(UCB0IV, USCI_SPI_UCTXIFG))
+  {
+    case USCI_NONE: break;
+    case USCI_SPI_UCRXIFG:
+      spi_rxchpush();
+      break;
+    case USCI_SPI_UCTXIFG:
+		if (!spi_txempty())
+		{
+			UCB0TXBUF = spi_txchpop();
+		}
+      break;
+    default: break;
+  }
+}
 
 static void init_configure_gps(void)
 {
