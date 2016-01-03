@@ -10,13 +10,17 @@
 #include "dbgif.h"
 #include "spiif.h"
 
-#define MSG_SIZE 128
-
 static U8 msg_buff[MSG_SIZE];
 
 const U8 * gp_dbgif_buff;
-volatile U16 g_dbgif_binp = 0;
-volatile U16 g_dbgif_bout = 0;
+U16 g_txbput = 0;
+U16 g_txbpop = 0;
+
+U8 * gp_txbuff;
+U16 * pg_txbput;
+U16 * pg_txbpop;
+
+
 //when received uknown character then it is echoed
 U8 g_dbgif_echo = '0';
 
@@ -29,42 +33,12 @@ static U8 err_msg[6][ERR_MSG_LEN] = {
 		"[!!] Expected ACK, but not received!  \n"
 };
 
-inline static void buffo_inc(void)
-{
-	g_dbgif_bout++;
-	if (g_dbgif_bout == MSG_SIZE)
-	{
-		g_dbgif_bout = 0;
-	}
-}
-
-U8 buff_getch(void)
-{
-	U8 ret;
-
-	ret = msg_buff[g_dbgif_bout];
-	buffo_inc();
-
-	return ret;
-}
-
-Boolean buff_empty(void)
-{
-	Boolean ret = false;
-
-	if (g_dbgif_binp == g_dbgif_bout)
-	{
-		ret = true;
-	}
-	return ret;
-}
-
 inline static void buffi_inc(void)
 {
-	g_dbgif_binp++;
-	if (g_dbgif_binp == MSG_SIZE)
+	g_txbput++;
+	if (g_txbput == MSG_SIZE)
 	{
-		g_dbgif_binp = 0;
+		g_txbput = 0;
 	}
 }
 
@@ -94,6 +68,10 @@ void dbg_inituart(void)
 	UCA0IE |= UCTXIE;
 
 	gp_dbgif_buff = msg_buff;
+
+	gp_txbuff = msg_buff;
+	pg_txbput = &g_txbput;
+	pg_txbpop = &g_txbpop;
 }
 
 void gps_txchars(U8 * buff, U16 len)
@@ -129,13 +107,13 @@ void dbg_txmsg(char * msg)
 
 	for (i = 0; i < len; i++)
 	{
-		msg_buff[g_dbgif_binp] = msg[i];
+		msg_buff[g_txbput] = msg[i];
 		buffi_inc();
 		if (msg[i] == '\n')
 		{
 			//when a new line requested
 			//insert carriage return
-			msg_buff[g_dbgif_binp] = '\r';
+			msg_buff[g_txbput] = '\r';
 			buffi_inc();
 
 		}

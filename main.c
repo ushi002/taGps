@@ -103,7 +103,7 @@ int main(void)
 
 		if (!buff_empty() && !(UCA0STATW & UCBUSY))
 		{
-			UCA0TXBUF = buff_getch();
+			UCA0TXBUF = buff_pop();
 		}
 
 		if (!spi_txempty() && !(UCB0STATW & UCBUSY))
@@ -212,7 +212,7 @@ void __attribute__ ((interrupt(USCI_A0_VECTOR))) USCI_A0_ISR (void)
 	case USCI_UART_UCTXIFG:
 		if (!buff_empty())
 		{
-			UCA0TXBUF = buff_getch();
+			UCA0TXBUF = buff_pop();
 		}
 		break;
 	case USCI_UART_UCSTTIFG: break;
