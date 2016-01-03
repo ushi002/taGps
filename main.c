@@ -321,6 +321,9 @@ static void init_configure_gps(void)
 	U16 init_cfg_try_num;
 	Boolean init_seq = true;
 
+	//reinitialize GPS UART
+	gps_inituart();
+
 	dbg_txmsg("\nPoll UBX CFG PORT message:\n");
 	//prepare port cfg msg
 	ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
