@@ -18,7 +18,7 @@
 
 #define SPI_PG_READ_DUMMY_BYTES 	4
 #define SPI_TX_SIZE (MEM_PAGE_SIZE+SPI_PG_READ_DUMMY_BYTES+SPI_ADDR_SIZE+4) //4 = margin
-#define SPI_RX_SIZE (MEM_PAGE_SIZE+4) //4 = margin
+#define SPI_RX_SIZE (SPI_TX_SIZE+4) //4 = margin
 //#define SPI_RX_SIZE (20+4) //4 = margin
 
 extern const U8 * spiif_pmmap;
