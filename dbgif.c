@@ -8,17 +8,10 @@
 #include <string.h>
 #include <msp430.h>
 #include "dbgif.h"
-#include "spiif.h"
 
-static U8 msg_buff[MSG_SIZE];
-
-const U8 * gp_dbgif_buff;
-U8 g_txbput = 0;
-U8 g_txbpop = 0;
-
-U8 * gp_txbuff;
-U8 * pg_txbput;
-U8 * pg_txbpop;
+extern U8 * pg_rxspi_txpc_buff;
+extern U16 * pg_rxspi_txpc_pop;
+extern U16 * pg_rxspi_txpc_put;
 
 
 //when received uknown character then it is echoed
@@ -32,15 +25,6 @@ static U8 err_msg[6][ERR_MSG_LEN] = {
 		"[!!] Received ACK from unknown MSG!   \n",
 		"[!!] Expected ACK, but not received!  \n"
 };
-
-inline static void buffi_inc(void)
-{
-	g_txbput++;
-	if (g_txbput == MSG_SIZE)
-	{
-		g_txbput = 0;
-	}
-}
 
 void dbg_initport(void)
 {
@@ -67,22 +51,11 @@ void dbg_inituart(void)
 
 	UCA0IE |= UCTXIE;
 
-	gp_dbgif_buff = msg_buff;
-
-	gp_txbuff = msg_buff;
-	pg_txbput = &g_txbput;
-	pg_txbpop = &g_txbpop;
 }
 
 void gps_txchars(U8 * buff, U16 len)
 {
 
-}
-
-void dbg_txchar(U8 * pChar)
-{
-	while(!(UCA0IFG&UCTXIFG)); //wait until UCA0 TX empty
-	UCA0TXBUF = *pChar;
 }
 
 void dbg_txerrmsg(U8 err_code)
@@ -107,30 +80,110 @@ void dbg_txmsg(char * msg)
 
 	for (i = 0; i < len; i++)
 	{
-		msg_buff[g_txbput] = msg[i];
-		buffi_inc();
+		buff_put(msg[i]);
 		if (msg[i] == '\n')
 		{
 			//when a new line requested
 			//insert carriage return
-			msg_buff[g_txbput] = '\r';
-			buffi_inc();
-
+			buff_put('\r');
 		}
 	}
+}
 
-	//start transmission:
-	//UCA0IFG |= UCTXIFG;
+void dbg_txchar(U8 * c)
+{
+	buff_put(*c);
 }
 
 void pcif_rxchar(void)
 {
 	char rxch;
+	U8 txch;
+	U16 tmp;
 
 	rxch = UCA0RXBUF;
 
 	switch (rxch)
 	{
+	case 's':
+		//export status
+		tmp = spi_getpgnum();
+		dbg_txmsg("\n0x");
+		//highbyte to hex:
+		txch = tmp>>12 & 0xf;
+		if (txch <= 9)
+		{
+			txch += 48; //ASCII 0-9
+		}else
+		{
+			txch += 65; //ASCII A-F
+		}
+		dbg_txchar(&txch);
+
+		txch = tmp>>8 & 0xf;
+		if (txch <= 9)
+		{
+			txch += 48; //ASCII 0-9
+		}else
+		{
+			txch += 65; //ASCII A-F
+		}
+		dbg_txchar(&txch);
+
+		//lowbyte to hex:
+		txch = tmp>>4 & 0xf;
+		if (txch <= 9)
+		{
+			txch += 48; //ASCII 0-9
+		}else
+		{
+			txch += 65; //ASCII A-F
+		}
+		dbg_txchar(&txch);
+
+		txch = tmp & 0xf;
+		if (txch <= 9)
+		{
+			txch += 48; //ASCII 0-9
+		}else
+		{
+			txch += 65; //ASCII A-F
+		}
+		dbg_txchar(&txch);
+		break;
+	case 'r':
+		//reset memory page counter
+		spi_clrpgnum();
+		break;
+	case 'd':
+		//dump
+		while (spi_getpgnum() > 0)
+		{
+			spi_loadpg();
+
+			while(!spi_txempty()) //wait until TX SPI buffer is empty
+			{
+				if (!spi_txempty() && !(UCB0STATW & UCBUSY))
+				{
+					UCB0TXBUF = spi_txchpop();
+				}
+			}
+
+			while(UCB0STATW & UCBUSY); //wait until TX PC uart is not busy
+
+			//we have now the page loaded, send it to uart...
+			//*pg_rxspi_txpc_put = MEM_PAGE_SIZE;
+			//*pg_rxspi_txpc_pop = 0;
+
+			//wait until TX PC is empty:
+			while(!buff_empty())
+			{
+				if (!buff_empty() && !(UCA0STATW & UCBUSY))
+				{
+					UCA0TXBUF = buff_pop();
+				}
+			}
+		}
 	default:
 		dbg_txmsg(&rxch);
 		break;

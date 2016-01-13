@@ -15,9 +15,7 @@
 		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
 
 static U8 tx_buff[SPI_TX_SIZE];
-static U8 rx_buff[SPI_RX_SIZE];
-
-static U8 mem_page[MEM_PAGE_SIZE];
+static U8 g_rxspi_txpc_buff[SPI_RX_SIZE];
 
 static U8 memory_map[MEM_MAP_SIZE] = "Ahoj\r\n";
 const U8 * spiif_pmmap;
@@ -29,11 +27,14 @@ U16 * pg_txpop;
 
 static U16 g_rxpop = 0;
 static U16 g_rxput = 0;
-U16 * pg_rxpop;
-U16 * pg_rxput;
+U16 * pg_rxspi_txpc_pop;
+U16 * pg_rxspi_txpc_put;
+U8 * pg_rxspi_txpc_buff;
 
 U8 * ptx_buff;
-U8 * prx_buff;
+
+
+static U16 g_pages_stored = 0;
 
 static void initport(void);
 
@@ -64,7 +65,7 @@ void spi_init(void)
 	UCB0CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
 	//UCB0CTLW0 |= UCSSEL__ACLK;                // ACLK
 	// SMCLK = 8Mz, divider is 4, SPI speed => 2MHz:
-	UCB0BR0 = 16;
+	UCB0BR0 = 64;
 	UCB0BR1 = 0x00;
 
 	UCB0CTLW0 &= ~UCSWRST;                    // **Initialize USCI state machine**
@@ -73,20 +74,43 @@ void spi_init(void)
 	spiif_pmmap = memory_map;
 
 	ptx_buff = tx_buff;
-	prx_buff = rx_buff;
 	pg_txput = &g_txput;
 	pg_txpop = &g_txpop;
 
-	pg_rxput = &g_rxput;
-	pg_rxpop = &g_rxpop;
+	pg_rxspi_txpc_buff = g_rxspi_txpc_buff;
+	pg_rxspi_txpc_put = &g_rxput;
+	pg_rxspi_txpc_pop = &g_rxpop;
 }
 
-void spi_pgstore(void)
+void spi_disrx(void)
 {
-//	cmd[0] = 0x82; //write mem page through buffer1
-//	cmd[1] = 0x00;
-//	cmd[2] = 0x00; //1,2 page number to write
-//	cmd[3] = 0x00; //buffer address offset to start write with
+	UCB0IE &= ~UCRXIE;
+}
+void spi_enrx(void)
+{
+	UCB0IE |= UCRXIE;
+}
+
+static void spi_pgstore(void)
+{
+	tx_buff[0] = 0x82; //opcode: write mem page through buffer1
+	tx_buff[1] = (U8) (g_pages_stored >> 8); //page addres byte 1
+	tx_buff[2] = (U8) (g_pages_stored & 0x00ff); //page addres byte 2
+	tx_buff[3] = 0x00; //buffer byte addres offset
+
+	g_txput = SPI_ADDR_SIZE+MEM_PAGE_SIZE;
+	g_txpop = 0;
+	g_pages_stored++;
+}
+
+U16 spi_getpgnum(void)
+{
+	return g_pages_stored;
+}
+
+void spi_clrpgnum(void)
+{
+	g_pages_stored = 0;
 }
 
 void spi_getstat(void)
@@ -100,11 +124,30 @@ void spi_getstat(void)
 	spi_txchpush(&byte);
 }
 
+void spi_loadpg(void)
+{
+//	tx_buff[0] = 0xd2; //opcode: write mem page through buffer1
+//	tx_buff[1] = (U8) (g_pages_stored >> 8); //page addres byte 1
+//	tx_buff[2] = (U8) (g_pages_stored & 0x00ff); //page addres byte 2
+//	tx_buff[3] = 0x00; //buffer byte addres offset
+	//4x dummybytes
+	//264 bytes
+	g_txput = MEM_PAGE_SIZE+SPI_PG_READ_DUMMY_BYTES+SPI_ADDR_SIZE;
+	g_txpop = 0;
+	g_pages_stored--;
+}
+
 void spiif_storeubx(const Message_s * ubx)
 {
 	U16 i;
 	static Boolean second_half = false;
 	const U16 HALF_MEM_POSITION = MEM_PAGE_SIZE>>1;
+
+	if (!spi_txempty())
+	{
+		dbg_txmsg("\nCannot store UBX message! SPI TX buffer is not empty!");
+		return;
+	}
 
 	U8 * msg_pointer;
 
@@ -115,7 +158,7 @@ void spiif_storeubx(const Message_s * ubx)
 			msg_pointer = (U8 *) &(ubx->pBody->navPvt);
 			for (i=0; i<sizeof(UbxNavPvt_s); i++)
 			{
-				mem_page[i] = msg_pointer[i];
+				tx_buff[SPI_ADDR_SIZE+i] = msg_pointer[i];
 			}
 			second_half = true;
 		}else
@@ -124,9 +167,10 @@ void spiif_storeubx(const Message_s * ubx)
 			msg_pointer = (U8 *) &(ubx->pBody->navPvt);
 			for (i=0; i<sizeof(UbxNavPvt_s); i++)
 			{
-				mem_page[i+HALF_MEM_POSITION] = msg_pointer[i];
+				tx_buff[SPI_ADDR_SIZE+i+HALF_MEM_POSITION] = msg_pointer[i];
 			}
 			second_half = false;
+			dbg_txmsg("\n\tSTORE UBX message");
 			spi_pgstore();
 		}
 	}else
@@ -149,7 +193,7 @@ inline U8 spi_rxchpop(void)
 {
 	U8 ret;
 
-	ret = rx_buff[g_rxpop];
+	ret = g_rxspi_txpc_buff[g_rxpop];
 	g_rxpop++;
 	if (g_rxpop == SPI_RX_SIZE)
 	{
