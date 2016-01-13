@@ -8,6 +8,7 @@
 #include <string.h>
 #include <msp430.h>
 #include "dbgif.h"
+#include "util.h"
 
 extern U8 * pg_rxspi_txpc_buff;
 extern U16 * pg_rxspi_txpc_pop;
@@ -110,45 +111,21 @@ void pcif_rxchar(void)
 		tmp = spi_getpgnum();
 		dbg_txmsg("\n0x");
 		//highbyte to hex:
-		txch = tmp>>12 & 0xf;
-		if (txch <= 9)
-		{
-			txch += 48; //ASCII 0-9
-		}else
-		{
-			txch += 65; //ASCII A-F
-		}
+		txch = (tmp>>12) & 0xf;
+		txch = util_num2hex(&txch);
 		dbg_txchar(&txch);
 
-		txch = tmp>>8 & 0xf;
-		if (txch <= 9)
-		{
-			txch += 48; //ASCII 0-9
-		}else
-		{
-			txch += 65; //ASCII A-F
-		}
+		txch = (tmp>>8) & 0xf;
+		txch = util_num2hex(&txch);
 		dbg_txchar(&txch);
 
 		//lowbyte to hex:
-		txch = tmp>>4 & 0xf;
-		if (txch <= 9)
-		{
-			txch += 48; //ASCII 0-9
-		}else
-		{
-			txch += 65; //ASCII A-F
-		}
+		txch = (tmp>>4) & 0xf;
+		txch = util_num2hex(&txch);
 		dbg_txchar(&txch);
 
 		txch = tmp & 0xf;
-		if (txch <= 9)
-		{
-			txch += 48; //ASCII 0-9
-		}else
-		{
-			txch += 55; //ASCII A-F
-		}
+		txch = util_num2hex(&txch);
 		dbg_txchar(&txch);
 		txch = '\n';
 		dbg_txchar(&txch);

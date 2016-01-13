@@ -10,6 +10,7 @@
 #include <msp430.h>
 #include "typedefs.h"
 #include "ubxprot.h"
+#include "util.h"
 
 #define SPI_ADDR_SIZE 	4     //OPCODE, page address byte1,2, buffer address byte
 #define MEM_PAGE_SIZE 	264
@@ -75,7 +76,26 @@ inline Boolean spi_txempty(void)
 #pragma FUNC_ALWAYS_INLINE(spi_rxchpush)
 inline void spi_rxchpush(void)
 {
-	pg_rxspi_txpc_buff[*pg_rxspi_txpc_put] = UCB0RXBUF;
+	U8 spichar, txch;
+
+	spichar = UCB0RXBUF;
+
+	txch = (spichar>>4) & 0xf;
+
+	txch = util_num2hex(&txch);
+
+	pg_rxspi_txpc_buff[*pg_rxspi_txpc_put] = txch;
+	(*pg_rxspi_txpc_put)++;
+	if (*pg_rxspi_txpc_put == SPI_RX_SIZE)
+	{
+		*pg_rxspi_txpc_put = 0;
+	}
+
+	txch = spichar & 0xf;
+
+	txch = util_num2hex(&txch);
+
+	pg_rxspi_txpc_buff[*pg_rxspi_txpc_put] = txch;
 	(*pg_rxspi_txpc_put)++;
 	if (*pg_rxspi_txpc_put == SPI_RX_SIZE)
 	{
