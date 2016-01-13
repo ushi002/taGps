@@ -180,6 +180,7 @@ void pcif_rxchar(void)
 /** Enable receiving PC UART commands telemetry */
 void pcif_enif(void)
 {
+	UCA0IFG &= ~UCRXIFG;
 	UCA0IE |= UCRXIE;
 }
 
