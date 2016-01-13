@@ -127,6 +127,7 @@ void spi_getstat(void)
 
 void spi_loadpg(void)
 {
+	g_pages_stored--;
 	tx_buff[0] = 0xd2; //opcode: write mem page through buffer1
 	tx_buff[1] = (U8) (g_pages_stored >> 8); //page addres byte 1
 	tx_buff[2] = (U8) (g_pages_stored & 0x00ff); //page addres byte 2
@@ -135,7 +136,6 @@ void spi_loadpg(void)
 	//264 bytes
 	g_txput = MEM_PAGE_SIZE+SPI_PG_READ_DUMMY_BYTES+SPI_ADDR_SIZE;
 	g_txpop = 0;
-	g_pages_stored--;
 }
 
 void spiif_storeubx(const Message_s * ubx)
