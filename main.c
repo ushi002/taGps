@@ -130,6 +130,8 @@ int main(void)
 			pcif_disif();
 			if (!gGpsInitialized)
 			{
+				//here we only write to the SPI
+				spi_disrx();
 				init_configure_gps();
 				gGpsInitialized = true;
 				led_ok();
@@ -141,6 +143,8 @@ int main(void)
 			pcif_enif();
 			if (gGpsInitialized)
 			{
+				//we will read/write SPI
+				spi_enrx();
 				//GPS is turned off
 				led_error();
 				gGpsInitialized = false;
