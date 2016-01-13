@@ -9,6 +9,7 @@
 #include "gpsif.h"
 #include "dbgif.h"
 
+
 static U8 txbuff[TXB_SIZE];
 
 static U8 g_txput = 0;
@@ -18,7 +19,7 @@ U8 * pgps_txbuf;
 U8 * pgps_txput;
 U8 * pgps_txpop;
 
-static U8 gpsumsg[82]; //GPS UBX message
+static U8 gpsumsg[TXB_SIZE]; //GPS UBX message
 static UbxPckHeader_s * pGpsUMsgHead = (UbxPckHeader_s *) gpsumsg;
 
 void gps_initport(void)
@@ -175,10 +176,10 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 	switch (ubxstat)
 	{
 	case ubxstat_idle:
+		ubxBytePos = 0;
 		if (rxChar == 0xB5)
 		{
 			ubxstat = ubxstat_syncchar2;
-			ubxBytePos = 0;
 			gpsumsg[ubxBytePos++] = rxChar;
 		}
 		break;
@@ -209,6 +210,12 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 		break;
 	case ubxstat_rec:
 		gpsumsg[ubxBytePos++] = rxChar;
+		if (ubxBytePos >= TXB_SIZE)
+		{
+			ubxstat = ubxstat_idle;
+			retVal = 3;
+			dbg_txmsg("\nIncoming UBX too long!");
+		}
 		if (ubxBytePos >= (pGpsUMsgHead->length + sizeof(UbxPckHeader_s) + sizeof(UbxPckChecksum_s)))
 		{
 			//message loaded, process packet
