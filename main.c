@@ -36,9 +36,6 @@
 #include "ledif.h"
 #include "butif.h"
 
-extern U8 * gp_dbgif_buff;
-extern U16 g_dbgif_blen;
-
 #define GPSRXCHAR	0x01
 #define GPS_PULSE	0x02
 #define CHECKACK	0x04
@@ -179,7 +176,6 @@ int main(void)
 		{
 			cmdToDo &= ~PC_UART_RX;
 			pcif_rxchar();
-			spi_getstat();
 		}
 	}
 }
