@@ -189,16 +189,3 @@ inline void spi_txchpush(U8 * ch)
 	}
 }
 
-inline U8 spi_rxchpop(void)
-{
-	U8 ret;
-
-	ret = g_rxspi_txpc_buff[g_rxpop];
-	g_rxpop++;
-	if (g_rxpop == SPI_RX_SIZE)
-	{
-		g_rxpop = 0;
-	}
-
-	return ret;
-}

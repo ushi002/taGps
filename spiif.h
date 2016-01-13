@@ -33,7 +33,6 @@ void spi_clrpgnum(void);
 void spi_loadpg(void);
 
 inline void spi_txchpush(U8 * ch);
-inline U8 spi_rxchpop(void);
 inline void spi_rxchpush(void);
 
 
