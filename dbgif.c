@@ -147,9 +147,16 @@ void pcif_rxchar(void)
 			txch += 48; //ASCII 0-9
 		}else
 		{
-			txch += 65; //ASCII A-F
+			txch += 55; //ASCII A-F
 		}
 		dbg_txchar(&txch);
+		txch = '\n';
+		dbg_txchar(&txch);
+		txch = '\r';
+		dbg_txchar(&txch);
+
+		//load SPI stat
+		spi_getstat();
 		break;
 	case 'r':
 		//reset memory page counter
@@ -184,6 +191,7 @@ void pcif_rxchar(void)
 				}
 			}
 		}
+		break;
 	default:
 		dbg_txmsg(&rxch);
 		break;
