@@ -88,6 +88,7 @@ void spi_disrx(void)
 }
 void spi_enrx(void)
 {
+	UCB0IFG &= ~UCRXIFG;
 	UCB0IE |= UCRXIE;
 }
 
