@@ -10,7 +10,7 @@
 
 #include "typedefs.h"
 
-#define MAX_MESSAGEBUF_LEN    100
+#define MAX_MESSAGEBUF_LEN    150
 
 typedef enum MessageId_t
 {
