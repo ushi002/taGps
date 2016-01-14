@@ -159,28 +159,17 @@ void pcif_rxchar(void)
 		{
 			spi_loadpg();
 
-			while(!spi_txempty()) //wait until TX SPI buffer is empty
-			{
-				if (!spi_txempty() && !(UCB0STATW & UCBUSY))
-				{
-					UCB0TXBUF = spi_txchpop();
-				}
-			}
+			while(UCB0STATW & UCBUSY); //wait until SPI is not busy
+			while(UCA0STATW & UCBUSY); //wait until TX PC uart is not busy
 
-			while(UCB0STATW & UCBUSY); //wait until TX PC uart is not busy
+			UCB0TXBUF = spi_txchpop();
+			while(!spi_txempty());
 
 			//we have now the page loaded, send it to uart...
 			//*pg_rxspi_txpc_put = MEM_PAGE_SIZE;
 			//*pg_rxspi_txpc_pop = 0;
-
-			//wait until TX PC is empty:
-			while(!buff_empty())
-			{
-				if (!buff_empty() && !(UCA0STATW & UCBUSY))
-				{
-					UCA0TXBUF = buff_pop();
-				}
-			}
+			UCA0TXBUF = buff_pop();
+			while(!buff_empty());
 		}
 		break;
 	default:
