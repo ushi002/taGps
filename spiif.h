@@ -24,7 +24,7 @@
 //whe printing in HEX we need double UART buffer space of TX buffer!
 #define SPI_RX_SIZE (2*SPI_TX_SIZE)
 #else
-SPI_RX_SIZE (SPI_TX_SIZE)
+#define SPI_RX_SIZE (SPI_TX_SIZE)
 #endif
 
 
