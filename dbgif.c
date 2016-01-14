@@ -108,6 +108,9 @@ void pcif_rxchar(void)
 	{
 	case 's':
 		//export status
+
+#ifdef OUTPUT_PRINT_HEX
+
 		tmp = spi_getpgnum();
 		dbg_txmsg("\n0x");
 		//highbyte to hex:
@@ -131,6 +134,17 @@ void pcif_rxchar(void)
 		dbg_txchar(&txch);
 		txch = '\r';
 		dbg_txchar(&txch);
+
+#else //OUTPUT_PRINT_HEX
+
+		tmp = spi_getpgnum();
+		//highbyte to hex:
+		txch = (tmp>>8) & 0xff;
+		dbg_txchar(&txch);
+		txch = (tmp) & 0xff;
+		dbg_txchar(&txch);
+
+#endif //OUTPUT_PRINT_HEX
 
 		//load SPI stat
 		spi_getstat();

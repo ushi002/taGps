@@ -9,7 +9,7 @@
 #define UTIL_H_
 #include "typedefs.h"
 
-
+#define OUTPUT_PRINT_HEX
 
 /** @brief Converts number from 0 to 15
  * to ASCII hex 0 to F */

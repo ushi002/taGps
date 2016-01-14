@@ -17,9 +17,16 @@
 #define MEM_MAP_SIZE 	24
 
 #define SPI_PG_READ_DUMMY_BYTES 	4
+
 #define SPI_TX_SIZE (MEM_PAGE_SIZE+SPI_PG_READ_DUMMY_BYTES+SPI_ADDR_SIZE+4) //4 = margin
-#define SPI_RX_SIZE (SPI_TX_SIZE+4) //4 = margin
-//#define SPI_RX_SIZE (20+4) //4 = margin
+
+#ifdef OUTPUT_PRINT_HEX
+//whe printing in HEX we need double UART buffer space of TX buffer!
+#define SPI_RX_SIZE (2*SPI_TX_SIZE)
+#else
+SPI_RX_SIZE (SPI_TX_SIZE)
+#endif
+
 
 extern const U8 * spiif_pmmap;
 
@@ -76,9 +83,12 @@ inline Boolean spi_txempty(void)
 #pragma FUNC_ALWAYS_INLINE(spi_rxchpush)
 inline void spi_rxchpush(void)
 {
-	U8 spichar, txch;
+	U8 spichar;
 
 	spichar = UCB0RXBUF;
+
+#ifdef OUTPUT_PRINT_HEX
+	U8 txch;
 
 	txch = (spichar>>4) & 0xf;
 
@@ -101,6 +111,18 @@ inline void spi_rxchpush(void)
 	{
 		*pg_rxspi_txpc_put = 0;
 	}
+
+#else // OUTPUT_PRINT_BIN
+
+	pg_rxspi_txpc_buff[*pg_rxspi_txpc_put] = spichar;
+	(*pg_rxspi_txpc_put)++;
+	if (*pg_rxspi_txpc_put == SPI_RX_SIZE)
+	{
+		*pg_rxspi_txpc_put = 0;
+	}
+
+#endif
+
 }
 
 #endif /* SPIIF_H_ */
