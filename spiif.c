@@ -103,6 +103,8 @@ static void spi_pgstore(void)
 	g_txput = SPI_ADDR_SIZE+MEM_PAGE_SIZE;
 	g_txpop = 0;
 	g_pages_stored++;
+
+	UCB0TXBUF = spi_txchpop();
 }
 
 U16 spi_getpgnum(void)
