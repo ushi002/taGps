@@ -169,6 +169,7 @@ int main(void)
 				dbg_txmsg("\nConfirmed! ");
 				spiif_storeubx(ubxmsg);
 				//displej_this(ubxmsg->pBody->navPvt.year);
+				ubx_get_msg(MessageIdPollPvt);
 			}
 		}
 
