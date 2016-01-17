@@ -33,7 +33,7 @@ U8 * pg_rxspi_txpc_buff;
 
 U8 * ptx_buff;
 
-
+#pragma PERSISTENT(g_pages_stored)
 static U16 g_pages_stored = 0;
 
 static void initport(void);
