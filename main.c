@@ -64,11 +64,12 @@ int main(void)
 	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
 	SFRIE1 |= WDTIE;                          // Enable WDT interrupt
 
+	//must be before other input interrupts configuration:
+	but_init();
+
 	dbg_initport();
 	gps_initport();
 	led_initport();
-
-	but_init();
 
 	// Disable the GPIO power-on default high-impedance mode to activate
 	// previously configured port settings
