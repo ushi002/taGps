@@ -94,6 +94,12 @@ void spi_enrx(void)
 
 static void spi_pgstore(void)
 {
+	if (g_pages_stored+1 == MEM_MAX_PAGES)
+	{
+		dbg_txmsg("[!!] SPI memory is full! Won't store any UBX messages!");
+		return;
+	}
+
 	tx_buff[0] = 0x82; //opcode: write mem page through buffer1
 	//for 264 bytes:
 	tx_buff[1] = (U8) (g_pages_stored >> 7); //page addres byte 1

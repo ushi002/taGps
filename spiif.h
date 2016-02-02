@@ -15,6 +15,7 @@
 #define SPI_ADDR_SIZE 	4     //OPCODE, page address byte1,2, buffer address byte
 #define MEM_PAGE_SIZE 	272
 #define MEM_MAP_SIZE 	24
+#define MEM_MAX_PAGES   32767
 
 #define SPI_PG_READ_DUMMY_BYTES 	4
 
