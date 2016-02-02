@@ -29,6 +29,9 @@ void gps_initport(void)
 	P3SEL1 &= ~(BIT4 | BIT5);
 
 	P2DIR &= BIT3;                           // Set P2.3 GPS PWR SENSE as input direction
+
+	P2IFG &= ~BIT1;
+	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
 
 void gps_inituart(void)
@@ -56,10 +59,11 @@ void gps_inituart(void)
 //Interrupt enable
 void gps_uart_ie(void)
 {
-	P2IFG &= ~BIT1;
-	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
 	UCA1IE |= UCTXIE;
+
+	P2IFG &= ~BIT1;
+	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
 
 //Interrupt disable
@@ -67,6 +71,8 @@ void gps_uart_id(void)
 {
 	UCA1IE &= ~UCRXIE;                         // Disable USCI_A1 RX interrupt
 	UCA1IE &= ~UCTXIE;
+
+	P2IE &= ~BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
 
 static void txb_push(U8 * ch)
