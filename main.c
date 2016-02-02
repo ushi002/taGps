@@ -61,7 +61,7 @@ int main(void)
 	const Message_s * ubxmsg;
 
 	//WDOG interrupt mode
-	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__8192;
+	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
 	SFRIE1 |= WDTIE;                          // Enable WDT interrupt
 
 	dbg_initport();
