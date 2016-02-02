@@ -40,6 +40,7 @@
 #define GPS_PULSE	0x02
 #define CHECKACK	0x04
 #define PC_UART_RX	0x08
+#define BUTTON1		0x10
 
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
@@ -54,11 +55,18 @@ typedef enum ButtonStep_t {
 static U16 cmdToDo = 0;
 static Boolean gGpsInitialized = false;
 
+//GPS time pulses to store GPS position
+static U16 gps_time_pulse_secs = 1;
+//number of generated GPS time pulses
+static U16 gps_time_pulse_num = 0;
+
 static void init_configure_gps(void);
 
 int main(void)
 {
 	const Message_s * ubxmsg;
+
+	U16 blinkRedPwr2 = 0;
 
 	//WDOG interrupt mode
 	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
@@ -109,11 +117,29 @@ int main(void)
 			UCB0TXBUF = spi_txchpop();
 		}
 
-		//if nothing to do fall asleep
-		if (!cmdToDo)
+		//fall asleep
+		__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
+		__no_operation();                       // For debugger
+
+		if (blinkRedPwr2 > 0)
 		{
-			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
-			__no_operation();                       // For debugger
+			blinkRedPwr2--;
+			led_swap_red();
+
+			if (blinkRedPwr2 == 0)
+			{
+				//return to original configuration:
+				SFRIE1 &= ~WDTIE;
+				WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
+				SFRIFG1 &= ~WDTIFG;
+				SFRIE1 |= WDTIE;
+				led_off();
+
+				//enable interrupt egain
+				P2IFG = 0;		// Clear all P2 interrupt flags
+				P2IE |= BIT0;  //disable following interrupts
+			}
+
 		}
 
 		//is GPS powered?
@@ -139,13 +165,27 @@ int main(void)
 				//we will read/write SPI
 				spi_enrx();
 				//GPS is turned off
-				led_error();
+				led_off();
 				gGpsInitialized = false;
 				gps_uart_id(); //disable interrupt
-				P2IE &= ~BIT1;                              // P2.1 interrupt disable
 			}
 			//check buttons
-			but_check();
+			//but_check();
+
+			if (cmdToDo & BUTTON1)
+			{
+				cmdToDo &= ~BUTTON1;
+				SFRIE1 &= ~WDTIE;
+				WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__512;
+				SFRIE1 |= WDTIE;
+
+				gps_time_pulse_secs++;
+				if (gps_time_pulse_secs > 5)
+				{
+					gps_time_pulse_secs = 1;
+				}
+				blinkRedPwr2 = gps_time_pulse_secs << 1;
+			}
 		}
 
 		if (cmdToDo & GPS_PULSE)
@@ -191,7 +231,7 @@ void __attribute__ ((interrupt(WDT_VECTOR))) WDT_ISR (void)
 #endif
 {
 	//set GPS PULSE artifficialy
-	P2IFG |= BIT1;
+	//P2IFG |= BIT1;
 	__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 }
 
@@ -268,13 +308,23 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	{
 	case P2IV_NONE: break;
 	case P2IV_P2IFG0:
+		cmdToDo |= BUTTON1;
+		P2IE &= ~BIT0;  //disable following interrupts
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
 		break;
 	case P2IV_P2IFG1:
 		//GPS TIME PULSE:
-		P6OUT ^= BIT5;	//switch red led
-		cmdToDo |= GPS_PULSE;
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
-		__no_operation();
+		gps_time_pulse_num++;
+
+		if (gps_time_pulse_secs >= gps_time_pulse_num)
+		{
+			gps_time_pulse_num = 0;
+			led_swap_green();
+			cmdToDo |= GPS_PULSE;
+			__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+			__no_operation();
+		}
 		//23*4 bajtu je NAV message...
 		//264 bajtu/stranka
 		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
