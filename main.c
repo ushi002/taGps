@@ -87,15 +87,10 @@ int main(void)
 	spi_init();
 	ubx_init();
 
-	//GPS not configured yet
-	led_error();
-
 	dbg_txmsg("\nWelcome to taGPS program\n");
 
-	dbg_txmsg("\nInitialization done, let us sleep...");
+	dbg_txmsg("\nEnter the operational mode and sleep...");
 
-	__bis_SR_register(LPM3_bits | GIE);       // Enter LPM3, interrupts enabled
-	__no_operation();                         // For debugger
 	while (1)
 	{
 
@@ -179,6 +174,9 @@ int main(void)
 			cmdToDo &= ~PC_UART_RX;
 			pcif_rxchar();
 		}
+
+		//clear "one loop" commands:
+		cmdToDo &= ~BUTTON1;
 	}
 }
 
