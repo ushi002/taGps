@@ -12,7 +12,9 @@
 
 static void initport(void)
 {
-	//BIT1 is GPS-TIMEPULSE!!!
+	//BIT0 - SW-CHECK-BATT-MEM
+	//[!!] PCB fix: GPS-TIMEPULSE from P9.1 (which does not support interrupts) rewired to P2.1
+	//BIT1 - GPS-TIMEPULSE
 	P2DIR = 0xFF ^ (BIT0 | BIT1);             // Set all but P2.0 and P2.1 to output direction
 	P2REN = BIT1 | BIT0;                      // Pull resistor enable for P2.0, 2.1
 	P2OUT = 0;                                // Pull-down resistor on P2.x
@@ -21,6 +23,7 @@ static void initport(void)
 	P2IE = BIT0;                              // P2.0 interrupt enable
 	P2IFG = 0;                                // Clear all P2 interrupt flags
 
+	//BIT0 - SW-CFG-GPS:
 	P7DIR = 0xFF ^ (BIT0);             // Set all but P7.0 to output direction
 	P7REN = BIT0;                      // Pull resistor enable for P7.0
 	P7OUT = 0;                         // Pull-down resistor on P7.0
