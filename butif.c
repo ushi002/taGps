@@ -12,21 +12,25 @@
 
 static void initport(void)
 {
-	//BIT0 - SW-CHECK-BATT-MEM
-	//[!!] PCB fix: GPS-TIMEPULSE from P9.1 (which does not support interrupts) rewired to P2.1
+	//PORT2:
+	//BIT2 - PWR-GPS-SENSE
 	//BIT1 - GPS-TIMEPULSE
-	P2DIR = 0xFF ^ (BIT0 | BIT1);             // Set all but P2.0 and P2.1 to output direction
-	P2REN = BIT1 | BIT0;                      // Pull resistor enable for P2.0, 2.1
+	P2DIR = 0xFF ^ (BIT2 | BIT1);             // Set all but P2.2 and P2.1 to output direction
+	P2REN = BIT2 | BIT1;                      // Pull resistor enable for P2.2, 2.1
 	P2OUT = 0;                                // Pull-down resistor on P2.x
 
-	P2IES = 0;                                // P2.0 Lo/Hi edge
-	P2IE = BIT0;                              // P2.0 interrupt enable
-	P2IFG = 0;                                // Clear all P2 interrupt flags
+	P2IES = 0;                                // P2.x Lo-to-Hi edge
+	P2IE = BIT1;                              // P2.1 interrupt enable
+	P2IFG = 0;                                // Clear all P2.x interrupt flags
 
-	//BIT0 - SW-CFG-GPS:
-	P7DIR = 0xFF ^ (BIT0);             // Set all but P7.0 to output direction
-	P7REN = BIT0;                      // Pull resistor enable for P7.0
-	P7OUT = 0;                         // Pull-down resistor on P7.0
+	//PORT3:
+	//P3BIT7 - SW-CFG-GPS
+	//P3BIT6 - SW-CHECK-BATT-MEM
+	//TODO: take advantage of USB PWR availability?
+	//P3BIT2 - PWR-USB-SENSE
+	P3DIR = 0xFF ^ (BIT7 | BIT6 | BIT2); // Set all but P3.7, 3.6 and 3.2 to output direction
+	P3REN = BIT7 | BIT6 | BIT2;        // Pull resistor enable for P3.7, 3.6 and 3.2
+	P3OUT = 0;                         // Pull-down resistor on P3.x
 
 }
 
@@ -44,7 +48,7 @@ void but_check(void)
 	static U16 but_bla_pres = 0;
 	static Boolean ready_to_reset = false;
 
-	if (P7IN & BIT0)
+	if (P3IN & BIT7)
 	{
 		dbg_txmsg("\nYellow pin is HIGH");
 		but_yel_pres++;
@@ -54,7 +58,7 @@ void but_check(void)
 		but_yel_pres = 0;
 	}
 
-	if (P2IN & BIT0)
+	if (P3IN & BIT6)
 	{
 		dbg_txmsg("\nBlack pin is HIGH");
 		but_bla_pres++;

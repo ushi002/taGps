@@ -13,29 +13,29 @@ void led_initport(void);
 
 static inline void led_off(void)
 {
-	P6OUT &= ~(BIT6 | BIT5);	//turn off leds
+	P7OUT &= ~(BIT6 | BIT7);	//turn off leds
 }
 
 static inline void led_ok(void)
 {
 	led_off();
-	P6OUT |= BIT6;	//turn green led on
+	P7OUT |= BIT6;	//turn green led on
 }
 
 static inline void led_error(void)
 {
 	led_off();
-	P6OUT |= BIT5;	//turn red led on
+	P7OUT |= BIT7;	//turn red led on
 }
 
 static inline void led_swap_red(void)
 {
-	P6OUT ^= BIT5;	//turn red led on
+	P7OUT ^= BIT7;	//turn red led on
 }
 
 static inline void led_swap_green(void)
 {
-	P6OUT ^= BIT6;	//turn red led on
+	P7OUT ^= BIT6;	//turn red led on
 }
 
 /*

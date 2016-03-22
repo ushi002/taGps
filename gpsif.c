@@ -127,7 +127,7 @@ Boolean gps_has_power(void)
 {
 	Boolean ret_val = false;
 
-	if (P2IN & BIT3)
+	if (P2IN & BIT2)
 	{
 		ret_val = true;
 	}

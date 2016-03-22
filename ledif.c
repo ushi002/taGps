@@ -10,7 +10,7 @@
 
 void led_initport(void)
 {
-	P6DIR |= BIT5 | BIT6;                     // Set P6.0 to output direction
-	P6OUT  = BIT5 | BIT6;
+	P7DIR |= BIT6 | BIT7;                     // Set P7.6 and P7.7 to output direction
+	P7OUT  = BIT6 | BIT7;				      // Set logic '1' to 7.6 and P7.7
 	led_off();
 }
