@@ -118,6 +118,11 @@ U16 spi_getpgnum(void)
 	return g_pages_stored;
 }
 
+void spi_setpgnum(U16 num)
+{
+	g_pages_stored = num;
+}
+
 void spi_clrpgnum(void)
 {
 	g_pages_stored = 0;
