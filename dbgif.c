@@ -155,6 +155,8 @@ void pcif_rxchar(void)
 		break;
 	case 'd':
 		//dump
+		//do not delete flash content when dump finished!
+		tmp = spi_getpgnum();
 		while (spi_getpgnum() > 0)
 		{
 			spi_loadpg();
@@ -171,6 +173,7 @@ void pcif_rxchar(void)
 			UCA0TXBUF = buff_pop();
 			while(!buff_empty());
 		}
+		spi_setpgnum(tmp);
 		break;
 	default:
 		dbg_txmsg(&rxch);
