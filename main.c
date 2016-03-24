@@ -72,6 +72,30 @@ int main(void)
 	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
 	SFRIE1 |= WDTIE;                          // Enable WDT interrupt
 
+	//default initialization:
+	//initialize all ports to eliminate current wasting
+	P1DIR = 0xFF;
+	P1OUT = 0x00;
+	P2DIR = 0xFF;
+	P2OUT = 0x00;
+	P3DIR = 0xFF;
+	P3OUT = 0x00;
+	P4DIR = 0xFF;
+	P4OUT = 0x00;
+	P5DIR = 0xFF;
+	P5OUT = 0x00;
+	P6DIR = 0xFF;
+	P6OUT = 0x00;
+	P7DIR = 0xFF;
+	P7OUT = 0x00;
+	P8DIR = 0xFF;
+	P8OUT = 0x00;
+	P9DIR = 0xFF;
+	P9OUT = 0x00;
+	//this port does not exist but satisfy TI compiler..:
+	P10DIR = 0xFF;
+	P10OUT = 0x00;
+
 	//must be before other input interrupts configuration:
 	but_init();
 
