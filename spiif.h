@@ -13,7 +13,7 @@
 #include "util.h"
 
 #define SPI_ADDR_SIZE 	4     //OPCODE, page address byte1,2, buffer address byte
-#define MEM_PAGE_SIZE 	272
+#define MEM_PAGE_SIZE 	264
 #define MEM_MAP_SIZE 	24
 #define MEM_MAX_PAGES   32767
 

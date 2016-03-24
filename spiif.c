@@ -144,7 +144,7 @@ void spi_loadpg(void)
 	tx_buff[3] = 0x00; //buffer byte addres offset
 	//4x dummybytes
 	//264 bytes
-	g_txput = MEM_PAGE_SIZE+SPI_PG_READ_DUMMY_BYTES+SPI_ADDR_SIZE;
+	g_txput = SPI_ADDR_SIZE+SPI_PG_READ_DUMMY_BYTES+MEM_PAGE_SIZE;
 	g_txpop = 0;
 }
 
