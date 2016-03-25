@@ -100,7 +100,7 @@ void pcif_rxchar(void)
 {
 	char rxch;
 	U8 txch;
-	U16 tmp;
+	U16 tmp, i, pgtot;
 
 	rxch = UCA0RXBUF;
 
@@ -155,11 +155,10 @@ void pcif_rxchar(void)
 		break;
 	case 'd':
 		//dump
-		//do not delete flash content when dump finished!
-		tmp = spi_getpgnum();
-		while (spi_getpgnum() > 0)
+		pgtot = spi_getpgnum();
+		for(i = 0; i < pgtot; i++)
 		{
-			spi_loadpg();
+			spi_loadpg(i);
 
 			while(UCB0STATW & UCBUSY); //wait until SPI is not busy
 			while(UCA0STATW & UCBUSY); //wait until TX PC uart is not busy
@@ -173,7 +172,6 @@ void pcif_rxchar(void)
 			UCA0TXBUF = buff_pop();
 			while(!buff_empty());
 		}
-		spi_setpgnum(tmp);
 		break;
 	default:
 		dbg_txmsg(&rxch);

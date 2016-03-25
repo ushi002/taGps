@@ -37,10 +37,9 @@ void spi_enrx(void);
 void spiif_storeubx(const Message_s * ubx);
 void spi_getstat(void);
 U16 spi_getpgnum(void);
-void spi_setpgnum(U16 num);
 void spi_clrpgnum(void);
 
-void spi_loadpg(void);
+void spi_loadpg(U16 pgNum);
 
 inline void spi_txchpush(U8 * ch);
 inline void spi_rxchpush(void);

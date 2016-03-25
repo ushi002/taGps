@@ -118,11 +118,6 @@ U16 spi_getpgnum(void)
 	return g_pages_stored;
 }
 
-void spi_setpgnum(U16 num)
-{
-	g_pages_stored = num;
-}
-
 void spi_clrpgnum(void)
 {
 	g_pages_stored = 0;
@@ -139,13 +134,12 @@ void spi_getstat(void)
 	spi_txchpush(&byte);
 }
 
-void spi_loadpg(void)
+void spi_loadpg(U16 pgNum)
 {
-	g_pages_stored--;
 	tx_buff[0] = 0xd2; //opcode: write mem page through buffer1
 	//for 264 bytes:
-	tx_buff[1] = (U8) (g_pages_stored >> 7); //page addres byte 1
-	tx_buff[2] = (U8) ((g_pages_stored << 1) & 0x01fe); //page addres byte 2
+	tx_buff[1] = (U8) (pgNum >> 7); //page addres byte 1
+	tx_buff[2] = (U8) ((pgNum << 1) & 0x01fe); //page addres byte 2
 	tx_buff[3] = 0x00; //buffer byte addres offset
 	//4x dummybytes
 	//264 bytes
