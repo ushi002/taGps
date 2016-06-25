@@ -20,16 +20,14 @@ static void initport(void)
 	P2OUT = 0;                                // Pull-down resistor on P2.x
 
 	P2IES = 0;                                // P2.x Lo-to-Hi edge
-	P2IE = BIT1;                              // P2.1 interrupt enable
+	P2IE &= ~BIT1;                            // P2.1 interrupt disable
 	P2IFG = 0;                                // Clear all P2.x interrupt flags
 
 	//PORT3:
 	//P3BIT7 - SW-CFG-GPS
-	//P3BIT6 - SW-CHECK-BATT-MEM
-	//TODO: take advantage of USB PWR availability?
 	//P3BIT2 - PWR-USB-SENSE
-	P3DIR = 0xFF ^ (BIT7 | BIT6 | BIT2); // Set all but P3.7, 3.6 and 3.2 to output direction
-	P3REN = BIT7 | BIT6 | BIT2;        // Pull resistor enable for P3.7, 3.6 and 3.2
+	P3DIR = 0xFF ^ (BIT7 | BIT2); // Set all but P3.7 and 3.2 to output direction
+	P3REN = BIT7 | BIT2;        // Pull resistor enable for P3.7, 3.6 and 3.2
 	P3OUT = 0;                         // Pull-down resistor on P3.x
 
 }

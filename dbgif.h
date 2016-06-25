@@ -26,6 +26,7 @@ void pcif_rxchar(void);
 void pcif_enif(void);
 void pcif_disif(void);
 
+Boolean pcif_has_power(void);
 
 extern U8 * pg_rxspi_txpc_buff;
 extern U16 * pg_rxspi_txpc_put;

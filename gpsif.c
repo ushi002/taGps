@@ -28,10 +28,9 @@ void gps_initport(void)
 	P3SEL0 |= BIT4 | BIT5;                    // USCI_A1 UART operation on P3
 	P3SEL1 &= ~(BIT4 | BIT5);
 
-	P2DIR &= BIT3;                           // Set P2.3 GPS PWR SENSE as input direction
 
-	P2IFG &= ~BIT1;
-	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
+	//P2IFG &= ~BIT1;
+	//P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
 
 void gps_inituart(void)
@@ -48,7 +47,7 @@ void gps_inituart(void)
 	UCA1BR1 = 0x00;
 	UCA1MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
 	UCA1IFG &= ~UCRXIFG; //clear previous received character
-	UCA1CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+	//UCA1CTLW0 &= ~UCSWRST;                    // Release eUSCI from reset
 
 
 	pgps_txbuf = txbuff;
@@ -57,7 +56,7 @@ void gps_inituart(void)
 }
 
 //Interrupt enable
-void gps_uart_ie(void)
+void gps_ie(void)
 {
 	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
 	UCA1IE |= UCTXIE;
@@ -65,14 +64,27 @@ void gps_uart_ie(void)
 	P2IFG &= ~BIT1;
 	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
+//Interrupt enable
+void gps_uart_enable(void)
+{
+	//set clock again:
+	UCA1CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
+	UCA1CTLW0 &= ~UCSWRST;                    // Release eUSCI from reset
+}
 
 //Interrupt disable
-void gps_uart_id(void)
+void gps_id(void)
 {
 	UCA1IE &= ~UCRXIE;                         // Disable USCI_A1 RX interrupt
 	UCA1IE &= ~UCTXIE;
 
 	P2IE &= ~BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
+}
+
+//Interrupt disable
+void gps_uart_disable(void)
+{
+	UCA1CTLW0 = UCSWRST;                      // Put eUSCI in reset
 }
 
 static void txb_push(U8 * ch)

@@ -48,7 +48,7 @@ void dbg_inituart(void)
 	UCA0BR0 = 26;                             // 8000000/16/9600/2 for 19200baudrate
 	UCA0BR1 = 0x00;
 	UCA0MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
-	UCA0CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+	UCA0CTLW0 &= ~UCSWRST;                    // Release eUSCI reset
 
 	UCA0IE |= UCTXIE;
 
@@ -184,6 +184,9 @@ void pcif_rxchar(void)
 /** Enable receiving PC UART commands telemetry */
 void pcif_enif(void)
 {
+	//set the clock again:
+	UCA0CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
+	UCA0CTLW0 &= ~UCSWRST;                    // Release eUSCI reset
 	UCA0IFG &= ~UCRXIFG;
 	UCA0IE |= UCRXIE;
 }
@@ -192,4 +195,21 @@ void pcif_enif(void)
 void pcif_disif(void)
 {
 	UCA0IE &= ~(UCRXIE);
+	UCA0CTLW0 = UCSWRST;                      // Put eUSCI in reset
+}
+
+/** @brief Check if USB powered
+ *
+ * @return  - false - no power
+ * 			- true - USB powered */
+Boolean pcif_has_power(void)
+{
+	Boolean ret_val = false;
+
+	if (P3IN & BIT2)
+	{
+		ret_val = true;
+	}
+
+	return ret_val;
 }

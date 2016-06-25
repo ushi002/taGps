@@ -23,8 +23,10 @@ typedef enum{
 
 void gps_initport(void);
 void gps_inituart(void);
-void gps_uart_ie(void);
-void gps_uart_id(void);
+void gps_ie(void);
+void gps_id(void);
+void gps_uart_enable(void);
+void gps_uart_disable(void);
 
 void gps_initcmdtx(U8 * buff);
 void gps_cmdtx(U8 * buff);

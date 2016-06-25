@@ -41,6 +41,7 @@
 #define CHECKACK	0x04
 #define PC_UART_RX	0x08
 #define BUTTON1		0x10
+#define WTDOG		0x20
 
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
@@ -54,6 +55,9 @@ typedef enum ButtonStep_t {
 //#pragma PERSISTENT(cmdToDo)
 static U16 cmdToDo = 0;
 static Boolean gGpsInitialized = false;
+
+static Boolean gGpsPowered = false;
+static Boolean gUsbPowered = false;
 
 //GPS time pulses to store GPS position
 static U16 gps_time_pulse_secs = 1;
@@ -128,25 +132,32 @@ int main(void)
 
 		if (!gps_txempty() && !(UCA1STATW & UCBUSY))
 		{
+			//send a character to GPS
 			UCA1TXBUF = gps_txbpop();
 		}
 
 		if (!buff_empty() && !(UCA0STATW & UCBUSY))
 		{
+			//send an SPI FLASH character to PC UART
 			UCA0TXBUF = buff_pop();
 		}
 
 		if (!spi_txempty() && !(UCB0STATW & UCBUSY))
 		{
+			//send a character to FLASH
 			UCB0TXBUF = spi_txchpop();
 		}
 
-		//fall asleep
-		__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
-		__no_operation();                       // For debugger
+		if (!cmdToDo)
+		{
+			//nothing to do, fall asleep
+			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
+			__no_operation();                       // For debugger
+		}
 
 		if (blinkRedPwr2 > 0)
 		{
+			cmdToDo &= ~WTDOG;
 			blinkRedPwr2--;
 			led_swap_red();
 
@@ -161,43 +172,61 @@ int main(void)
 
 				//enable interrupt egain
 				P2IFG = 0;		// Clear all P2 interrupt flags
-				P2IE |= BIT0;  //disable following interrupts
+				P2IE |= BIT0;   //enable again interrupts
 			}
 
 		}
 
-		//is GPS powered?
-		if (gps_has_power())
+		if (cmdToDo & WTDOG)
 		{
-			//disable PC communication
-			pcif_disif();
-			if (!gGpsInitialized)
+			cmdToDo &= ~WTDOG;
+			//regular checks...
+			if (pcif_has_power() && !gUsbPowered)
 			{
-				//here we only write to the SPI
-				spi_disrx();
-				init_configure_gps();
-				gGpsInitialized = true;
-				led_ok();
-				gps_uart_ie(); //enable interrupt
-			}
-		}else
-		{
-			//enable PC communication
-			pcif_enif();
-			if (gGpsInitialized)
-			{
-				//we will read/write SPI
+				//enable PC communication
+				pcif_enif();
+				gUsbPowered = true;
+				//USB will read/write SPI
 				spi_enrx();
+			}
+			if (!pcif_has_power() && gUsbPowered)
+			{
+				//disable PC communication
+				pcif_disif();
+				gUsbPowered = false;
+				//without USB no reads from the SPI memory
+				spi_disrx();
+			}
+			//is GPS powered?
+			if (gps_has_power() && !gGpsPowered)
+			{
+				gGpsPowered = true;
+				gps_uart_enable();
+				if (!gGpsInitialized)
+				{
+					init_configure_gps();
+					gGpsInitialized = true;
+					gps_ie(); //enable interrupts
+					led_ok();
+				}
+			}
+			if (!gps_has_power() && gGpsPowered)
+			{
+				gGpsPowered = false;
+				gps_id(); //disable interrupt
+				gps_uart_disable();
+				gGpsInitialized = false;
 				//GPS is turned off
 				led_off();
-				gGpsInitialized = false;
-				gps_uart_id(); //disable interrupt
 			}
-			//check buttons
-			//but_check();
+		}
 
+		if (!gGpsPowered && !gGpsInitialized)
+		{
+			//configure GPS:
 			if (cmdToDo & BUTTON1)
 			{
+				//konfigure for led blinking
 				cmdToDo &= ~BUTTON1;
 				SFRIE1 &= ~WDTIE;
 				WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__512;
@@ -212,24 +241,38 @@ int main(void)
 			}
 		}
 
-		if (cmdToDo & GPS_PULSE)
+		if (gGpsPowered && gGpsInitialized)
 		{
-			cmdToDo &= ~GPS_PULSE;
-			dbg_txmsg("\nPoll GPS status");
-			ubxmsg = ubx_get_msg(MessageIdPollPvt);
-			gps_cmdtx(ubxmsg->pMsgBuff);
-		}
-
-		if (cmdToDo & GPSRXCHAR)
-		{
-			cmdToDo &= ~GPSRXCHAR;
-			gps_rx_ubx_msg(ubxmsg, true);
-			if (ubxmsg->confirmed)
+			if (cmdToDo & BUTTON1)
 			{
-				dbg_txmsg("\nConfirmed! ");
-				spiif_storeubx(ubxmsg);
-				//displej_this(ubxmsg->pBody->navPvt.year);
-				ubx_get_msg(MessageIdPollPvt);
+				cmdToDo &= ~BUTTON1;
+			}
+
+			if (cmdToDo & GPS_PULSE)
+			{
+				gps_time_pulse_num++;
+				if (gps_time_pulse_num >= gps_time_pulse_secs)
+				{
+					gps_time_pulse_num = 0;
+					led_swap_green();
+					cmdToDo &= ~GPS_PULSE;
+					dbg_txmsg("\nPoll GPS status");
+					ubxmsg = ubx_get_msg(MessageIdPollPvt);
+					gps_cmdtx(ubxmsg->pMsgBuff);
+				}
+			}
+
+			if (cmdToDo & GPSRXCHAR)
+			{
+				cmdToDo &= ~GPSRXCHAR;
+				gps_rx_ubx_msg(ubxmsg, true);
+				if (ubxmsg->confirmed)
+				{
+					dbg_txmsg("\nConfirmed! ");
+					spiif_storeubx(ubxmsg);
+					//displej_this(ubxmsg->pBody->navPvt.year);
+					ubx_get_msg(MessageIdPollPvt);
+				}
 			}
 		}
 
@@ -238,9 +281,6 @@ int main(void)
 			cmdToDo &= ~PC_UART_RX;
 			pcif_rxchar();
 		}
-
-		//clear "one loop" commands:
-		cmdToDo &= ~BUTTON1;
 	}
 }
 
@@ -256,6 +296,7 @@ void __attribute__ ((interrupt(WDT_VECTOR))) WDT_ISR (void)
 {
 	//set GPS PULSE artifficialy
 	//P2IFG |= BIT1;
+	cmdToDo |= WTDOG;
 	__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 }
 
@@ -333,22 +374,15 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	case P2IV_NONE: break;
 	case P2IV_P2IFG0:
 		cmdToDo |= BUTTON1;
-		P2IE &= ~BIT0;  //disable following interrupts
+		//?? musi? P2IE &= ~BIT0;  //disable following interrupts
 		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 		__no_operation();
 		break;
 	case P2IV_P2IFG1:
 		//GPS TIME PULSE:
-		gps_time_pulse_num++;
-
-		if (gps_time_pulse_secs >= gps_time_pulse_num)
-		{
-			gps_time_pulse_num = 0;
-			led_swap_green();
-			cmdToDo |= GPS_PULSE;
-			__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
-			__no_operation();
-		}
+		cmdToDo |= GPS_PULSE;
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
 		//23*4 bajtu je NAV message...
 		//264 bajtu/stranka
 		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
@@ -396,7 +430,7 @@ static void init_configure_gps(void)
 	Boolean init_seq = true;
 
 	//reinitialize GPS UART
-	gps_inituart();
+	//gps_inituart();
 
 	dbg_txmsg("\nPoll UBX CFG PORT message:\n");
 	//prepare port cfg msg
