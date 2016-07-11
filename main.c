@@ -215,10 +215,8 @@ int main(void)
 					init_configure_gps();
 					gGpsInitialized = true;
 					gps_ie(); //enable interrupts
-					//blick green that we have configured GPS chip
-					led_on_green();
-					TA0CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
-					TA0EX0 = TAIDEX_7;
+					//flash long green that we have configured GPS chip
+					led_flash_green_long();
 				}
 			}
 			if (!gps_has_power() && gGpsPowered)
@@ -227,11 +225,9 @@ int main(void)
 				gps_id(); //disable interrupt
 				gps_uart_disable();
 				gGpsInitialized = false;
-				//GPS is turned off
-				//blick green that we received gps pulse
-				led_on_red();
-				TA1CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
-				TA1EX0 = TAIDEX_7;
+				//flash long red that GPS chip is off power
+				led_flash_red_long();
+
 			}
 		}
 
@@ -268,8 +264,7 @@ int main(void)
 				if (gps_time_pulse_num >= gps_time_pulse_secs)
 				{
 					//blick green that we received gps pulse
-					led_on_green();
-					TA0CTL = TASSEL__SMCLK | ID__1 | MC__UP;        // SMCLK, start timer
+					led_flash_green_short();
 
 					gps_time_pulse_num = 0;
 					cmdToDo &= ~GPS_PULSE;

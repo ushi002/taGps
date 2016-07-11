@@ -58,6 +58,10 @@ static inline void led_swap_green(void)
 	P7OUT ^= BIT6;	//turn red led on
 }
 
+void led_flash_green_short(void);
+void led_flash_green_long(void);
+void led_flash_red_long(void);
+
 /*
 void led_ok(void);
 void led_error(void);
