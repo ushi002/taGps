@@ -118,6 +118,14 @@ int main(void)
 	CSCTL3 = DIVA__1 | DIVS__1 | DIVM__1;     // Set all dividers
 	CSCTL0_H = 0;                             // Lock CS registers
 
+	//configure TIMERs_A
+	TA0CCTL0 = CCIE;                          // TACCR0 interrupt enabled
+	TA0CCR0 = 50000;
+	TA0CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+	TA1CCTL0 = CCIE;                          // TACCR0 interrupt enabled
+	TA1CCR0 = 50000;
+	TA1CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+
 	dbg_inituart();
 	gps_inituart();
 	spi_init();
@@ -207,7 +215,10 @@ int main(void)
 					init_configure_gps();
 					gGpsInitialized = true;
 					gps_ie(); //enable interrupts
-					led_ok();
+					//blick green that we have configured GPS chip
+					led_on_green();
+					TA0CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
+					TA0EX0 = TAIDEX_7;
 				}
 			}
 			if (!gps_has_power() && gGpsPowered)
@@ -217,7 +228,10 @@ int main(void)
 				gps_uart_disable();
 				gGpsInitialized = false;
 				//GPS is turned off
-				led_off();
+				//blick green that we received gps pulse
+				led_on_red();
+				TA1CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
+				TA1EX0 = TAIDEX_7;
 			}
 		}
 
@@ -253,8 +267,11 @@ int main(void)
 				gps_time_pulse_num++;
 				if (gps_time_pulse_num >= gps_time_pulse_secs)
 				{
+					//blick green that we received gps pulse
+					led_on_green();
+					TA0CTL = TASSEL__SMCLK | ID__1 | MC__UP;        // SMCLK, start timer
+
 					gps_time_pulse_num = 0;
-					led_swap_green();
 					cmdToDo &= ~GPS_PULSE;
 					dbg_txmsg("\nPoll GPS status");
 					ubxmsg = ubx_get_msg(MessageIdPollPvt);
@@ -298,6 +315,36 @@ void __attribute__ ((interrupt(WDT_VECTOR))) WDT_ISR (void)
 	//P2IFG |= BIT1;
 	cmdToDo |= WTDOG;
 	__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+}
+
+// Timer0_A0 for green led interrupt service routine
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector = TIMER0_A0_VECTOR
+__interrupt void Timer0_A0_ISR (void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+	TA0CTL = MC__STOP;        // SMCLK, do not count yet
+	TA0EX0 = TAIDEX_0; 		  //clear extended divider
+	led_off_green();
+}
+
+// Timer1_A0 for red led interrupt service routine
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector = TIMER1_A0_VECTOR
+__interrupt void Timer1_A0_ISR (void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(TIMER1_A0_VECTOR))) Timer1_A0_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+	TA1CTL = MC__STOP;        // SMCLK, do not count yet
+	TA1EX0 = TAIDEX_0; 		  //clear extended divider
+	led_off_red();
 }
 
 //USCI_A0 interrupt routine
