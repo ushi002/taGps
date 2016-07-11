@@ -16,6 +16,26 @@ static inline void led_off(void)
 	P7OUT &= ~(BIT6 | BIT7);	//turn off leds
 }
 
+static inline void led_on_green(void)
+{
+	P7OUT |= BIT6;	//turn green led on
+}
+
+static inline void led_on_red(void)
+{
+	P7OUT |= BIT7;	//turn red led on
+}
+
+static inline void led_off_green(void)
+{
+	P7OUT &= ~BIT6;	//turn green led off
+}
+
+static inline void led_off_red(void)
+{
+	P7OUT &= ~BIT7;	//turn red led off
+}
+
 static inline void led_ok(void)
 {
 	led_off();
