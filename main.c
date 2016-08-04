@@ -131,8 +131,32 @@ int main(void)
 	spi_init();
 	ubx_init();
 
-	dbg_txmsg("\nWelcome to taGPS program\n");
+	dbg_txmsg("\nWelcome to taGPS program. Last reset: ");
+	U16 tmp;
+	U8 txch;
+	tmp = SYSRSTIV;
+	dbg_txmsg("0x");
+	//highbyte to hex:
+	txch = (tmp>>12) & 0xf;
+	txch = util_num2hex(&txch);
+	dbg_txchar(&txch);
 
+	txch = (tmp>>8) & 0xf;
+	txch = util_num2hex(&txch);
+	dbg_txchar(&txch);
+
+	//lowbyte to hex:
+	txch = (tmp>>4) & 0xf;
+	txch = util_num2hex(&txch);
+	dbg_txchar(&txch);
+
+	txch = tmp & 0xf;
+	txch = util_num2hex(&txch);
+	dbg_txchar(&txch);
+	txch = '\n';
+	dbg_txchar(&txch);
+	txch = '\r';
+	dbg_txchar(&txch);
 	dbg_txmsg("\nEnter the operational mode and sleep...");
 
 	while (1)
