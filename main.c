@@ -438,6 +438,34 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	}
 }
 
+// Port 3 interrupt service routine
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector=PORT3_VECTOR
+__interrupt void Port_3(void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(PORT3_VECTOR))) Port_3 (void)
+#else
+#error Compiler not supported!
+#endif
+{
+	switch(__even_in_range(P3IV, P3IV_P3IFG7))
+	{
+	case P3IV_NONE: break;
+	case P3IV_P3IFG0: break;
+	case P3IV_P3IFG1: break;
+	case P3IV_P3IFG2: break;
+	case P3IV_P3IFG3: break;
+	case P3IV_P3IFG4: break;
+	case P3IV_P3IFG5: break;
+	case P3IV_P3IFG6: break;
+	case P3IV_P3IFG7:
+		cmdToDo |= BUTTON1;
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
+		break;
+	}
+}
+
 //SPI INTERRUPT ROUTINE:
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
 #pragma vector=USCI_B0_VECTOR
