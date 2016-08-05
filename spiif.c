@@ -13,8 +13,45 @@
 extern U16 gAdcBatteryVal;
 
 		//23*4 bajtu je NAV message...
-		//264 bajtu/stranka
-		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
+		//264 bajtu/stranka/8xUBX
+		//mame 32768 stranek*8 sekund = 72.8 hodin (3.03dny) ubx/sekunda
+
+//MAXIMUM 33 BYTES!!!:
+static const U8 ar_ubxnavpvt_cfg[] = {
+//		0,1,2,3, 	//U32 iTOW;
+		4,5, 		//U16 year;
+	    6, 			//U8  month;
+	    7, 			//U8  day;
+	    8, 			//U8  hour;
+	    9,			//U8  min;
+	    10, 		//U8  sec;
+	    11, 		//U8  valid;
+//	    12, 13, 14, 15, 	//U32 tAcc;
+//	    16, 17, 18, 19, 	//I32 nano;
+	    20,					//U8  fixType;
+	    21, 		//U8  flags;
+//	    22, 		//U8  reserved1;
+	    23, 		//U8  numSV;
+	    24, 25, 26, 27, 	//I32 lon;
+	    28, 29, 30, 31,		//I32 lat;
+	    32, 33, 34, 35, 	//I32 height;
+//	    36, 37, 38, 39, 	//I32 hMSL;
+//	    40, 41, 42, 43, 	//U32 hAcc;
+//	    44, 45, 46, 47, 	//U32 vAcc;
+//	    48, 49, 50, 51, 	//I32 velN;
+//	    52, 53, 54, 55, 	//I32 velE;
+//	    56, 57, 58, 59, 	//I32 velD;
+	    60, 61, 62, 63, 	//I32 gSpeed;
+//	    64, 65, 66, 67, 	//I32 headMot;
+//	    68, 69, 70, 71, 	//U32 sAcc;
+//	    72, 73, 74, 75, 	//U32 headAcc;
+//	    76, 77, 		//U16 pDOP;
+//	    78, 79, 		//U16 reserved2a;
+//	    80, 81, 82, 83, 	//U32 reserved2b;
+//	    84, 85, 86, 87, 	//I32 HeadVeh;
+		//TOOD: put here battery, temperature HouseKeeping?:
+	    88, 89, 90, 91 		//U32 reseverd3;
+};
 
 static U8 tx_buff[SPI_TX_SIZE];
 static U8 g_rxspi_txpc_buff[SPI_RX_SIZE];
@@ -152,8 +189,10 @@ void spi_loadpg(U16 pgNum)
 void spiif_storeubx(const Message_s * ubx)
 {
 	U16 i;
-	static Boolean second_half = false;
-	const U16 HALF_MEM_POSITION = MEM_PAGE_SIZE>>1;
+	static U16 msgNum = 0;
+	U16 actualMemOffset;
+	const U16 MESSGS_PER_PAGE = 8; //8 messages per page
+	const U16 NAV_MEM_OFFSET = MEM_PAGE_SIZE/MESSGS_PER_PAGE;
 
 	if (!spi_txempty())
 	{
@@ -165,25 +204,27 @@ void spiif_storeubx(const Message_s * ubx)
 
 	if (ubx->id == MessageIdPollPvt)
 	{
-		if (!second_half)
+		if (msgNum < MESSGS_PER_PAGE)
 		{
 			msg_pointer = (U8 *) &(ubx->pBody->navPvt);
-			for (i=0; i<sizeof(UbxNavPvt_s); i++)
+			actualMemOffset = msgNum*NAV_MEM_OFFSET;
+			for (i=0; i<sizeof(ar_ubxnavpvt_cfg)-4; i++)
 			{
-				tx_buff[SPI_ADDR_SIZE+i] = msg_pointer[i];
+				tx_buff[SPI_ADDR_SIZE+i+actualMemOffset] = msg_pointer[ar_ubxnavpvt_cfg[i]];
 			}
-			second_half = true;
-		}else
+			//little endianness:
+			tx_buff[SPI_ADDR_SIZE+actualMemOffset+sizeof(ar_ubxnavpvt_cfg)-4] = (U8) (gAdcBatteryVal);
+			tx_buff[SPI_ADDR_SIZE+actualMemOffset+sizeof(ar_ubxnavpvt_cfg)-3] = (U8) (gAdcBatteryVal>>8);
+			tx_buff[SPI_ADDR_SIZE+actualMemOffset+sizeof(ar_ubxnavpvt_cfg)-2] = (U8) (gAdcBatteryVal);
+			tx_buff[SPI_ADDR_SIZE+actualMemOffset+sizeof(ar_ubxnavpvt_cfg)-1] = (U8) (gAdcBatteryVal>>8);
+
+			msgNum++;
+		}
+		if (msgNum >= MESSGS_PER_PAGE)
 		{
-			//fill second half of mem page
-			msg_pointer = (U8 *) &(ubx->pBody->navPvt);
-			for (i=0; i<sizeof(UbxNavPvt_s); i++)
-			{
-				tx_buff[SPI_ADDR_SIZE+i+HALF_MEM_POSITION] = msg_pointer[i];
-			}
-			second_half = false;
 			dbg_txmsg("\n\tSTORE UBX message");
 			spi_pgstore();
+			msgNum = 0;
 		}
 	}else
 	{
