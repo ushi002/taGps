@@ -10,6 +10,8 @@
 #include "spiif.h"
 #include "dbgif.h"
 
+extern U16 gAdcBatteryVal;
+
 		//23*4 bajtu je NAV message...
 		//264 bajtu/stranka
 		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
