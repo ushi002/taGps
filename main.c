@@ -62,7 +62,9 @@ static Boolean gUsbPowered = false;
 volatile U16 gAdcBatteryVal = 0;
 
 //GPS time pulses to store GPS position
-static U16 gps_time_pulse_secs = 1;
+//last char must be zero!
+static const U8 gps_pulse_cfg_ar[] = {1, 5, 20, 0};
+static U16 gps_time_pulse_secs_idx = 0;
 //number of generated GPS time pulses
 static U16 gps_time_pulse_num = 0;
 
@@ -72,7 +74,7 @@ int main(void)
 {
 	const Message_s * ubxmsg;
 
-	U16 blinkRedPwr2 = 0;
+	U16 blinkRed = 0;
 
 	//WDOG interrupt mode
 	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
@@ -142,12 +144,18 @@ int main(void)
 
 
 	//configure TIMERs_A
+	//GREEN LED
 	TA0CCTL0 = CCIE;                          // TACCR0 interrupt enabled
 	TA0CCR0 = 50000;
 	TA0CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+	//RED LED
 	TA1CCTL0 = CCIE;                          // TACCR0 interrupt enabled
 	TA1CCR0 = 50000;
 	TA1CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+	//new timer for DELAY?? or use the same for RED LED??
+	TA2CCTL0 = CCIE;                          // TACCR0 interrupt enabled
+	TA2CCR0 = 50000;
+	TA2CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
 
 	dbg_inituart();
 	gps_inituart();
@@ -210,13 +218,13 @@ int main(void)
 			__no_operation();                       // For debugger
 		}
 
-		if (blinkRedPwr2 > 0)
+		if (blinkRed > 0)
 		{
 			cmdToDo &= ~WTDOG;
-			blinkRedPwr2--;
+			blinkRed--;
 			led_swap_red();
 
-			if (blinkRedPwr2 == 0)
+			if (blinkRed == 0)
 			{
 				//return to original configuration:
 				SFRIE1 &= ~WDTIE;
@@ -283,18 +291,18 @@ int main(void)
 			//configure GPS:
 			if (cmdToDo & BUTTON1)
 			{
-				//konfigure for led blinking
 				cmdToDo &= ~BUTTON1;
+				//konfigure for led blinking
 				SFRIE1 &= ~WDTIE;
 				WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__512;
 				SFRIE1 |= WDTIE;
 
-				gps_time_pulse_secs++;
-				if (gps_time_pulse_secs > 5)
+				gps_time_pulse_secs_idx++;
+				if (gps_pulse_cfg_ar[gps_time_pulse_secs_idx] == 0)
 				{
-					gps_time_pulse_secs = 1;
+					gps_time_pulse_secs_idx = 0;
 				}
-				blinkRedPwr2 = gps_time_pulse_secs << 1;
+				blinkRed = gps_pulse_cfg_ar[gps_time_pulse_secs_idx]<<1;
 			}
 		}
 
@@ -307,8 +315,9 @@ int main(void)
 
 			if (cmdToDo & GPS_PULSE)
 			{
+				cmdToDo &= ~GPS_PULSE;
 				gps_time_pulse_num++;
-				if (gps_time_pulse_num >= gps_time_pulse_secs)
+				if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx])
 				{
 					//blick green that we received gps pulse
 					led_flash_green_short();
@@ -316,7 +325,6 @@ int main(void)
 					ADC12CTL0 ^= ADC12SC;
 
 					gps_time_pulse_num = 0;
-					cmdToDo &= ~GPS_PULSE;
 					dbg_txmsg("\nPoll GPS status");
 					ubxmsg = ubx_get_msg(MessageIdPollPvt);
 					gps_cmdtx(ubxmsg->pMsgBuff);
