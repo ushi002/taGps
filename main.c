@@ -56,6 +56,7 @@ typedef enum ButtonStep_t {
 static U16 cmdToDo = 0;
 static Boolean gGpsInitialized = false;
 
+static Boolean gGpsPowerChange = false;
 static Boolean gGpsPowered = false;
 static Boolean gUsbPowered = false;
 
@@ -260,30 +261,30 @@ int main(void)
 				//without USB no reads from the SPI memory
 				spi_disrx();
 			}
-			//is GPS powered?
-			if (gps_has_power() && !gGpsPowered)
+		}
+		//is GPS powered?
+		if (gGpsPowerChange && gGpsPowered)
+		{
+			gGpsPowerChange = false;
+			gps_uart_enable();
+			if (!gGpsInitialized)
 			{
-				gGpsPowered = true;
-				gps_uart_enable();
-				if (!gGpsInitialized)
-				{
-					init_configure_gps();
-					gGpsInitialized = true;
-					gps_ie(); //enable interrupts
-					//flash long green that we have configured GPS chip
-					led_flash_green_long();
-				}
+				init_configure_gps();
+				gGpsInitialized = true;
+				gps_ie(); //enable interrupts
+				//flash long green that we have configured GPS chip
+				led_flash_green_long();
 			}
-			if (!gps_has_power() && gGpsPowered)
-			{
-				gGpsPowered = false;
-				gps_id(); //disable interrupt
-				gps_uart_disable();
-				gGpsInitialized = false;
-				//flash long red that GPS chip is off power
-				led_flash_red_long();
+		}
+		if (gGpsPowerChange && !gGpsPowered)
+		{
+			gGpsPowerChange = false;
+			gps_id(); //disable interrupt
+			gps_uart_disable();
+			gGpsInitialized = false;
+			//flash long red that GPS chip is off power
+			led_flash_red_long();
 
-			}
 		}
 
 		if (!gGpsPowered && !gGpsInitialized)
@@ -541,7 +542,24 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 		//264 bajtu/stranka
 		//mame 32768 stranek - 9hodin->stranka/zaznam/sekunda
 		break;
-	case P2IV_P2IFG2: break;
+	case P2IV_P2IFG2:
+		if (gps_has_power())
+		{
+			gGpsPowered = true;
+			//we have power ('1'), wait for 1->0 transition:
+			P2IES |= BIT2;                                // P2.2 Hi-to-Lo edge
+			gGpsPowerChange = true;
+
+		}else
+		{
+			gGpsPowered = false;
+			//we have NO power ('0'), wait for 0->1 transition:
+			P2IES &= ~BIT2;                                // P2.2 Lo-to-Hi edge
+			gGpsPowerChange = true;
+		}
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
+		break;
 	case P2IV_P2IFG3: break;
 	case P2IV_P2IFG4: break;
 	case P2IV_P2IFG5: break;

@@ -20,6 +20,8 @@ static void initport(void)
 	P2OUT = 0;                                // Pull-down resistor on P2.x
 
 	P2IES = 0;                                // P2.x Lo-to-Hi edge
+	P2IE = 0;                                 // P2.x interrupt disable
+	P2IE |= BIT2;                             // P2.2 interrupt enaable - GPS-POWER
 	P2IE &= ~BIT1;                            // P2.1 interrupt disable
 	P2IFG = 0;                                // Clear all P2.x interrupt flags
 
