@@ -31,8 +31,13 @@ static void initport(void)
 	P3DIR = 0xFF ^ (BIT7 | BIT2); // Set all but P3.7 and 3.2 to output direction
 	P3REN = BIT7 | BIT2;        // Pull resistor enable for P3.7, 3.6 and 3.2
 	P3OUT = 0;                         // Pull-down resistor on P3.x
+
+	P3IES = 0;                                // P3.x Lo-to-Hi edge
+
 	//enable interrupt for yellow button SW-CFG-GPS
 	P3IE |= BIT7;
+
+	P3IE |= BIT2;							// P3.2 interrupt enable - USB-POWER
 
 }
 

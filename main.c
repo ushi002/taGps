@@ -58,6 +58,7 @@ static Boolean gGpsInitialized = false;
 
 static Boolean gGpsPowerChange = false;
 static Boolean gGpsPowered = false;
+static Boolean gUsbPowerChange = false;
 static Boolean gUsbPowered = false;
 
 volatile U16 gAdcBatteryVal = 0;
@@ -245,23 +246,25 @@ int main(void)
 		{
 			cmdToDo &= ~WTDOG;
 			//regular checks...
-			if (pcif_has_power() && !gUsbPowered)
-			{
-				//enable PC communication
-				pcif_enif();
-				gUsbPowered = true;
-				//USB will read/write SPI
-				spi_enrx();
-			}
-			if (!pcif_has_power() && gUsbPowered)
-			{
-				//disable PC communication
-				pcif_disif();
-				gUsbPowered = false;
-				//without USB no reads from the SPI memory
-				spi_disrx();
-			}
 		}
+
+		if (gUsbPowerChange && gUsbPowered)
+		{
+			gUsbPowerChange = false;
+			//enable PC communication
+			pcif_enif();
+			//USB will read/write SPI
+			spi_enrx();
+		}
+		if (gUsbPowerChange && !gUsbPowered)
+		{
+			gUsbPowerChange = false;
+			//disable PC communication
+			pcif_disif();
+			//without USB no reads from the SPI memory
+			spi_disrx();
+		}
+
 		//is GPS powered?
 		if (gGpsPowerChange && gGpsPowered)
 		{
@@ -583,7 +586,24 @@ void __attribute__ ((interrupt(PORT3_VECTOR))) Port_3 (void)
 	case P3IV_NONE: break;
 	case P3IV_P3IFG0: break;
 	case P3IV_P3IFG1: break;
-	case P3IV_P3IFG2: break;
+	case P3IV_P3IFG2:
+		if (pcif_has_power())
+		{
+			gUsbPowered = true;
+			//we have power ('1'), wait for 1->0 transition:
+			P3IES |= BIT2;                                // P3.2 Hi-to-Lo edge
+			gUsbPowerChange = true;
+
+		}else
+		{
+			gUsbPowered = false;
+			//we have NO power ('0'), wait for 0->1 transition:
+			P3IES &= ~BIT2;                                // P3.2 Lo-to-Hi edge
+			gUsbPowerChange = true;
+		}
+		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__no_operation();
+		break;
 	case P3IV_P3IFG3: break;
 	case P3IV_P3IFG4: break;
 	case P3IV_P3IFG5: break;
