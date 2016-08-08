@@ -130,7 +130,7 @@ int main(void)
                                               // to settle
 
 	// Configure ADC12
-    ADC12CTL0 = ADC12SHT0_1 | ADC12ON;      // Sampling time, S&H=16, ADC12 on
+    ADC12CTL0 = ADC12SHT0_2 | ADC12ON;      // Sampling time, S&H=16, ADC12 on
     //Divide SMCLK/32 to be able to use ADC12PWRMD
     //single channel, single conversion
     ADC12CTL1 = ADC12PDIV1 | ADC12SHP;
