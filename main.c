@@ -407,6 +407,8 @@ void __attribute__ ((interrupt(TIMER1_A0_VECTOR))) Timer1_A0_ISR (void)
 	TA1CTL = MC__STOP;        // SMCLK, do not count yet
 	TA1EX0 = TAIDEX_0; 		  //clear extended divider
 	led_off_red();
+	//keep button disabled during signaling
+	but_yellow_disable();
 }
 
 
