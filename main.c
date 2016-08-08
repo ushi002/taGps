@@ -41,7 +41,6 @@
 #define CHECKACK	0x04
 #define PC_UART_RX	0x08
 #define BUTTON1		0x10
-#define WTDOG		0x20
 
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
@@ -77,9 +76,8 @@ int main(void)
 {
 	const Message_s * ubxmsg;
 
-	//WDOG interrupt mode
-	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
-	SFRIE1 |= WDTIE;                          // Enable WDT interrupt
+	//WDOG disable
+	WDTCTL = WDTPW | WDTHOLD;
 
 	//default initialization:
 	//initialize all ports to eliminate current wasting
@@ -217,12 +215,6 @@ int main(void)
 			//nothing to do, fall asleep
 			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
 			__no_operation();                       // For debugger
-		}
-
-		if (cmdToDo & WTDOG)
-		{
-			cmdToDo &= ~WTDOG;
-			//regular checks...
 		}
 
 		if (gUsbPowerChange && gUsbPowered)
@@ -385,21 +377,6 @@ void __attribute__ ((interrupt(ADC12_VECTOR))) ADC12_ISR (void)
 	case ADC12IV_ADC12RDYIFG: break;        // Vector 76:  ADC12RDY
 	default: break;
 	}
-}
-// Watchdog Timer interrupt service routine
-#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
-#pragma vector=WDT_VECTOR
-__interrupt void WDT_ISR(void)
-#elif defined(__GNUC__)
-void __attribute__ ((interrupt(WDT_VECTOR))) WDT_ISR (void)
-#else
-#error Compiler not supported!
-#endif
-{
-	//set GPS PULSE artifficialy
-	//P2IFG |= BIT1;
-	cmdToDo |= WTDOG;
-	__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
 }
 
 // Timer0_A0 for green led interrupt service routine
