@@ -28,6 +28,12 @@ void led_flash_green_long(void)
 	TA0EX0 = TAIDEX_7;
 }
 
+void led_flash_red_short(void)
+{
+	led_on_red();
+	TA1CTL = TASSEL__SMCLK | ID__1 | MC__UP;        // SMCLK, start timer
+}
+
 void led_flash_red_long(void)
 {
 	led_on_red();

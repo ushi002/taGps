@@ -11,5 +11,7 @@
 
 void but_init(void);
 void but_check(void);
+void but_yellow_disable(void);
+void but_yellow_enable(void);
 
 #endif /* BUTIF_H_ */

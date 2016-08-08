@@ -60,6 +60,7 @@ static Boolean gGpsPowerChange = false;
 static Boolean gGpsPowered = false;
 static Boolean gUsbPowerChange = false;
 static Boolean gUsbPowered = false;
+static U16 gBlinkRed = 0;
 
 volatile U16 gAdcBatteryVal = 0;
 
@@ -75,8 +76,6 @@ static void init_configure_gps(void);
 int main(void)
 {
 	const Message_s * ubxmsg;
-
-	U16 blinkRed = 0;
 
 	//WDOG interrupt mode
 	WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
@@ -220,28 +219,6 @@ int main(void)
 			__no_operation();                       // For debugger
 		}
 
-		if (blinkRed > 0)
-		{
-			cmdToDo &= ~WTDOG;
-			blinkRed--;
-			led_swap_red();
-
-			if (blinkRed == 0)
-			{
-				//return to original configuration:
-				SFRIE1 &= ~WDTIE;
-				WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__32K;
-				SFRIFG1 &= ~WDTIFG;
-				SFRIE1 |= WDTIE;
-				led_off();
-
-				//enable interrupt egain
-				P2IFG = 0;		// Clear all P2 interrupt flags
-				P2IE |= BIT0;   //enable again interrupts
-			}
-
-		}
-
 		if (cmdToDo & WTDOG)
 		{
 			cmdToDo &= ~WTDOG;
@@ -296,17 +273,14 @@ int main(void)
 			if (cmdToDo & BUTTON1)
 			{
 				cmdToDo &= ~BUTTON1;
-				//konfigure for led blinking
-				SFRIE1 &= ~WDTIE;
-				WDTCTL = WDTPW | WDTSSEL__VLO | WDTTMSEL | WDTCNTCL | WDTIS__512;
-				SFRIE1 |= WDTIE;
+				but_yellow_disable();
 
 				gps_time_pulse_secs_idx++;
 				if (gps_pulse_cfg_ar[gps_time_pulse_secs_idx] == 0)
 				{
 					gps_time_pulse_secs_idx = 0;
 				}
-				blinkRed = gps_pulse_cfg_ar[gps_time_pulse_secs_idx]<<1;
+				gBlinkRed = gps_pulse_cfg_ar[gps_time_pulse_secs_idx];
 			}
 		}
 
@@ -456,6 +430,30 @@ void __attribute__ ((interrupt(TIMER1_A0_VECTOR))) Timer1_A0_ISR (void)
 	TA1CTL = MC__STOP;        // SMCLK, do not count yet
 	TA1EX0 = TAIDEX_0; 		  //clear extended divider
 	led_off_red();
+}
+
+
+// Timer2_A0 for delays interrupt service routine
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector = TIMER2_A0_VECTOR
+__interrupt void Timer2_A0_ISR (void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(TIMER2_A0_VECTOR))) Timer2_A0_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+	TA2CTL = MC__STOP;        // SMCLK, do not count yet
+	TA2EX0 = TAIDEX_0; 		  //clear extended divider
+	if (gBlinkRed > 0)
+	{
+		gBlinkRed--;
+		led_flash_red_short();
+	}
+	if (gBlinkRed == 0)
+	{
+		but_yellow_enable();
+	}
 }
 
 //USCI_A0 interrupt routine

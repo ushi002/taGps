@@ -60,6 +60,7 @@ static inline void led_swap_green(void)
 
 void led_flash_green_short(void);
 void led_flash_green_long(void);
+void led_flash_red_short(void);
 void led_flash_red_long(void);
 
 /*

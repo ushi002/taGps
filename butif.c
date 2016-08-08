@@ -48,6 +48,19 @@ void but_init(void)
 
 }
 
+void but_yellow_disable(void)
+{
+	P3IE &= ~BIT7;  //disable interrupt for yellow button SW-CFG-GPS
+	TA2CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
+	TA2EX0 = TAIDEX_7;
+}
+
+void but_yellow_enable(void)
+{
+	P3IFG &= ~BIT7;   // Clear interrupt flag
+	P3IE |= BIT7;  //enable interrupt for yellow button SW-CFG-GPS
+}
+
 void but_check(void)
 {
 	const U16 HOLD_BUTT_TO_RESET = 5;
