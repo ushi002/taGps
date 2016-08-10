@@ -36,7 +36,7 @@
 #include "ledif.h"
 #include "butif.h"
 
-//#define ARTIFICIAL_GPS
+#define ARTIFICIAL_GPS
 #ifdef ARTIFICIAL_GPS
 U16 gGpsDiv = 0;
 #endif //ARTIFICIAL_GPS
@@ -422,6 +422,7 @@ void __attribute__ ((interrupt(TIMER1_A0_VECTOR))) Timer1_A0_ISR (void)
 	TA1EX0 = TAIDEX_0; 		  //clear extended divider
 	led_off_red();
 	//keep button disabled during signaling
+	//and call enable button enable timer
 	but_yellow_disable();
 }
 
