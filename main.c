@@ -36,6 +36,11 @@
 #include "ledif.h"
 #include "butif.h"
 
+//#define ARTIFICIAL_GPS
+#ifdef ARTIFICIAL_GPS
+U16 gGpsDiv = 0;
+#endif //ARTIFICIAL_GPS
+
 #define GPSRXCHAR	0x01
 #define GPS_PULSE	0x02
 #define CHECKACK	0x04
@@ -155,6 +160,15 @@ int main(void)
 	TA2CCTL0 = CCIE;                          // TACCR0 interrupt enabled
 	TA2CCR0 = 50000;
 	TA2CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+
+#ifdef ARTIFICIAL_GPS
+	//Artificial GPS pulse
+	TA3CCTL0 = CCIE;                          // TACCR0 interrupt enabled
+	TA3CCR0 = 50000;
+	TA3CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+	TA3CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
+	TA3EX0 = TAIDEX_7;
+#endif
 
 	dbg_inituart();
 	gps_inituart();
@@ -434,6 +448,27 @@ void __attribute__ ((interrupt(TIMER2_A0_VECTOR))) Timer2_A0_ISR (void)
 		but_yellow_enable();
 	}
 }
+
+#ifdef ARTIFICIAL_GPS
+// Timer3_A0 for delays interrupt service routine
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector = TIMER3_A0_VECTOR
+__interrupt void Timer3_A0_ISR (void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(TIMER3_A0_VECTOR))) Timer3_A0_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+	__no_operation();
+	gGpsDiv += 1;
+	if (gGpsDiv > 2)
+	{
+		gGpsDiv = 0;
+		P2IFG |= BIT1;  //generate GPS pulse interrupt
+	}
+}
+#endif //ARTIFICIAL GPS
 
 //USCI_A0 interrupt routine
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
