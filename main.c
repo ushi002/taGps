@@ -69,8 +69,8 @@ static U16 gBlinkRed = 0;
 volatile U16 gAdcBatteryVal = 0;
 
 //GPS time pulses to store GPS position
-//last char must be zero!
-static const U8 gps_pulse_cfg_ar[] = {1, 5, 20, 0};
+static const U16 gps_pulse_cfg_ar[] = {1, 5, 20};
+static const U16 gps_pulse_cfg_option_num = 3;
 static U16 gps_time_pulse_secs_idx = 0;
 //number of generated GPS time pulses
 static U16 gps_time_pulse_num = 0;
@@ -275,18 +275,9 @@ int main(void)
 
 		if (!gGpsPowered && !gGpsInitialized)
 		{
-			//configure GPS:
 			if (cmdToDo & BUTTON1)
 			{
 				cmdToDo &= ~BUTTON1;
-				but_yellow_disable();
-
-				gps_time_pulse_secs_idx++;
-				if (gps_pulse_cfg_ar[gps_time_pulse_secs_idx] == 0)
-				{
-					gps_time_pulse_secs_idx = 0;
-				}
-				gBlinkRed = gps_pulse_cfg_ar[gps_time_pulse_secs_idx];
 			}
 		}
 
@@ -295,6 +286,14 @@ int main(void)
 			if (cmdToDo & BUTTON1)
 			{
 				cmdToDo &= ~BUTTON1;
+				//configure GPS:
+				but_yellow_disable();
+				gps_time_pulse_secs_idx++;
+				if (gps_time_pulse_secs_idx > gps_pulse_cfg_option_num-1)
+				{
+					gps_time_pulse_secs_idx = 0;
+				}
+				gBlinkRed = gps_pulse_cfg_ar[gps_time_pulse_secs_idx];
 			}
 
 			if (cmdToDo & GPS_PULSE)
