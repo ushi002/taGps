@@ -270,6 +270,7 @@ int main(void)
 			gGpsInitialized = false;
 			//flash long red that GPS chip is off power
 			led_flash_red_long();
+			gps_time_pulse_secs_idx = 0; //set GPS pulse period to default
 
 		}
 
