@@ -202,9 +202,17 @@ void spiif_storeubx(const Message_s * ubx)
 
 	U8 * msg_pointer;
 
-	if (ubx->id == MessageIdPollPvt)
+	if (ubx == 0)
 	{
-		if (msgNum < MESSGS_PER_PAGE)
+		for (i=0; i<sizeof(ar_ubxnavpvt_cfg); i++)
+		{
+			actualMemOffset = msgNum*NAV_MEM_OFFSET;
+			tx_buff[SPI_ADDR_SIZE+i+actualMemOffset] = 0xAA; //start session flag
+		}
+		msgNum++;
+	}else
+	{
+		if (ubx->id == MessageIdPollPvt)
 		{
 			msg_pointer = (U8 *) &(ubx->pBody->navPvt);
 			actualMemOffset = msgNum*NAV_MEM_OFFSET;
@@ -219,16 +227,16 @@ void spiif_storeubx(const Message_s * ubx)
 			tx_buff[SPI_ADDR_SIZE+actualMemOffset+sizeof(ar_ubxnavpvt_cfg)-1] = (U8) (gAdcBatteryVal>>8);
 
 			msgNum++;
-		}
-		if (msgNum >= MESSGS_PER_PAGE)
+		}else
 		{
-			dbg_txmsg("\n\tSTORE UBX message");
-			spi_pgstore();
-			msgNum = 0;
+			dbg_txmsg("\nWRONG ubx message!");
 		}
-	}else
+	}
+	if (msgNum >= MESSGS_PER_PAGE)
 	{
-		dbg_txmsg("\nWRONG ubx message!");
+		dbg_txmsg("\n\tSTORE UBX message");
+		spi_pgstore();
+		msgNum = 0;
 	}
 }
 

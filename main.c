@@ -36,7 +36,7 @@
 #include "ledif.h"
 #include "butif.h"
 
-#define ARTIFICIAL_GPS
+//#define ARTIFICIAL_GPS
 #ifdef ARTIFICIAL_GPS
 U16 gGpsDiv = 0;
 #endif //ARTIFICIAL_GPS
@@ -260,6 +260,8 @@ int main(void)
 				gps_ie(); //enable interrupts
 				//flash long green that we have configured GPS chip
 				led_flash_green_long();
+				//store page indicating the start of a session:
+				spiif_storeubx(0);
 			}
 		}
 		if (gGpsPowerChange && !gGpsPowered)
