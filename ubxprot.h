@@ -11,6 +11,7 @@
 #include "typedefs.h"
 
 #define MAX_MESSAGEBUF_LEN    150
+#define CFG_GNSS_BLOCKS		5
 
 typedef enum MessageId_t
 {
@@ -19,13 +20,16 @@ typedef enum MessageId_t
 	MessageIdPollCfgPrt = 2,
 	MessageIdSetCfgPrt = 3,
 	MessageIdPollPvt = 4,
+	MessageIdPollCfgGnss = 5,
+	MessageIdSetCfgGnss = 6,
 }MessageId_e;
 
 typedef enum BufferId_t
 {
 	BufferIdPollSetCfgNmea = 0,
 	BufferIdPollSetCfgPrt = 1,
-	BufferIdPollPvt = 2
+	BufferIdPollPvt = 2,
+	BufferIdPollSetCfgGnss = 3,
 }BufferId_e;
 
 typedef enum UbxClass_t
@@ -62,7 +66,8 @@ typedef enum UbxClassIdCfg_t
 {
 	UbxClassIdAck = 0x05,
 	UbxClassIdCfgPrt = 0x00,
-	UbxClassIdCfgNmea = 0x17
+	UbxClassIdCfgNmea = 0x17,
+	UbxClassIdCfgGnss = 0x3e,
 }UbxClassIdCfg_e;
 
 typedef struct UbxPckHeader_t
@@ -97,6 +102,25 @@ typedef struct UbxCfgPrt_t
     U16 flags;
     U16 reserved2;
 }UbxCfgPrt_s;
+
+typedef struct GnssBlock_t
+{
+    U8  gnssId;
+    U8  resTrkCh;
+    U8  maxTrkCh;
+    U8  reserved1;
+    U32 flags;
+}GnssBlock_s;
+
+typedef struct UbxCfgGnss_t
+{
+    U8  msgVer;
+    U8  numTrkChHw;
+    U8  numTrkChUse;
+    U8  numConfigBlocks;
+    //for ublox-m8c we have 5 blocks:
+    GnssBlock_s gnssBlock[CFG_GNSS_BLOCKS];
+}UbxCfgGnss_s;
 
 typedef struct UbxNavPvt_t
 {
@@ -143,6 +167,7 @@ typedef struct UbxNavPvt_t
 typedef union MessageBody_t
 {
 	UbxCfgPrt_s cfgPrt;
+	UbxCfgGnss_s cfgGnss;
 	UbxNavPvt_s navPvt;
 }MessageBody_u;
 
@@ -162,6 +187,8 @@ void ubx_genchecksum(const U8 * pBuff, U16 len, U8 * pCka, U8 * pCkb);
 U16 ubx_poll_cfgnmea(U8 * msg);
 U16 ubx_poll_cfgprt(U8 * msg);
 U16 ubx_set_cfgprt(U8 * msg);
+U16 ubx_poll_cfggnss(U8 * msg);
+U16 ubx_set_cfggnss(U8 * msg);
 U16 ubx_poll_pvt(U8 * msg);
 
 U16 ubx_checkmsg(U8 * msg);
