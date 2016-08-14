@@ -827,5 +827,88 @@ static void init_configure_gps(void)
 		}
 	}
 	dbg_txmsg("...GNSS for GPS is configured.");
+
+	dbg_txmsg("\nPoll UBX CFG PM2 message: ");
+	//prepare port cfg msg
+	ubxmsg = ubx_get_msg(MessageIdPollCfgPm2);
+	//send it
+	gps_initcmdtx(ubxmsg->pMsgBuff);
+	//wait for answer:
+	init_cfg_try_num = 0;
+	init_seq = true;
+	while(init_seq)
+	{
+		init_cfg_try_num++;
+		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
+		switch(rx_msg_res)
+		{
+		case 3:
+			dbg_txmsg("\nUBX message too long!");
+			break;
+		case 4:
+			dbg_txmsg("\nUBX message CRC Error!");
+			break;
+		case 5:
+			if (ubxmsg->confirmed)
+			{
+				init_seq = false;
+				dbg_txmsg("\nUBX message confirmed.");
+				init_cfg_try_num = 0;
+			}
+			break;
+		case 0:
+			//waiting for next character
+			break;
+		default:
+			dbg_txmsg("\nGPS unknown ERROR!");
+			break;
+
+		}
+
+		if (init_cfg_try_num > (USHRT_MAX>>2))
+		{
+			led_error();
+			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
+			init_cfg_try_num = 0;
+			ubxmsg = ubx_get_msg(MessageIdPollCfgPm2);
+			gps_initcmdtx(ubxmsg->pMsgBuff);
+		}
+	}
+	dbg_txmsg("...polled\n");
+
+//	dbg_txmsg("\n\nSetup power mode... ");
+	//SOME FLAFS of PM2 CFG does not match U-BLOX8 protocol!... Consult it..
+//	while(1)
+//	{
+//		ubxmsg = ubx_get_msg(MessageIdSetCfgGnss);
+//		gps_initcmdtx(ubxmsg->pMsgBuff);
+//		while(1)
+//		{
+//			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
+//			if (rx_msg_res != 0)
+//			{
+//				//message received
+//				break;
+//			}else
+//			{
+//				init_cfg_try_num++;
+//				if (init_cfg_try_num > (USHRT_MAX>>2))
+//				{
+//					//try again
+//					init_cfg_try_num = 0;
+//					break;
+//				}
+//			}
+//
+//		}
+//		if (!ubxmsg->confirmed)
+//		{
+//			dbg_txmsg("\n\nMessage not confirmed, trying again... ");
+//		}else
+//		{
+//			break;
+//		}
+//	}
+//	dbg_txmsg("...power mode is configured.");
 	led_ok();
 }

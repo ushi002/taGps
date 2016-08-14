@@ -22,6 +22,8 @@ typedef enum MessageId_t
 	MessageIdPollPvt = 4,
 	MessageIdPollCfgGnss = 5,
 	MessageIdSetCfgGnss = 6,
+	MessageIdPollCfgPm2 = 7,
+	MessageIdSetCfgPm2 = 8,
 }MessageId_e;
 
 typedef enum BufferId_t
@@ -30,6 +32,7 @@ typedef enum BufferId_t
 	BufferIdPollSetCfgPrt = 1,
 	BufferIdPollPvt = 2,
 	BufferIdPollSetCfgGnss = 3,
+	BufferIdPollSetCfgPm2 = 4,
 }BufferId_e;
 
 typedef enum UbxClass_t
@@ -68,6 +71,7 @@ typedef enum UbxClassIdCfg_t
 	UbxClassIdCfgPrt = 0x00,
 	UbxClassIdCfgNmea = 0x17,
 	UbxClassIdCfgGnss = 0x3e,
+	UbxClassIdCfgPm2 = 0x3b,
 }UbxClassIdCfg_e;
 
 typedef struct UbxPckHeader_t
@@ -122,6 +126,21 @@ typedef struct UbxCfgGnss_t
     GnssBlock_s gnssBlock[CFG_GNSS_BLOCKS];
 }UbxCfgGnss_s;
 
+typedef struct UbxCfgPm2_t
+{
+    U8  version;
+    U8  reserved1;
+    U8  maxStartupStateDur;
+    U8  reserved2;
+    U32 flags;
+    U32 updatePeriod;
+    U32 searchPeriod;
+    U32 gridOffset;
+    U16 onTime;
+    U16 minAcqTime;
+    U8  reserved3[20];
+}UbxCfgPm2_s;
+
 typedef struct UbxNavPvt_t
 {
     U32 iTOW;
@@ -168,6 +187,7 @@ typedef union MessageBody_t
 {
 	UbxCfgPrt_s cfgPrt;
 	UbxCfgGnss_s cfgGnss;
+	UbxCfgPm2_s cfgPm2;
 	UbxNavPvt_s navPvt;
 }MessageBody_u;
 
@@ -189,6 +209,8 @@ U16 ubx_poll_cfgprt(U8 * msg);
 U16 ubx_set_cfgprt(U8 * msg);
 U16 ubx_poll_cfggnss(U8 * msg);
 U16 ubx_set_cfggnss(U8 * msg);
+U16 ubx_poll_cfgpm2(U8 * msg);
+U16 ubx_set_cfgpm2(U8 * msg);
 U16 ubx_poll_pvt(U8 * msg);
 
 U16 ubx_checkmsg(U8 * msg);
