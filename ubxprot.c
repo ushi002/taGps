@@ -10,7 +10,7 @@
 
 void ubx_addchecksum(U8 * msg);
 
-#define MAX_MESSAGES_NUM    10
+#define MAX_MESSAGES_NUM    11
 #define MAX_MESSAGEBUF_NUM    6
 
 static U8 ubx_messages[MAX_MESSAGEBUF_NUM][MAX_MESSAGEBUF_LEN] __attribute__((section(".TI.persistent")));
@@ -78,6 +78,22 @@ void ubx_init(void)
 	gMessage[messageId].pHead = (UbxPckHeader_s *) gMessage[messageId].pMsgBuff;
 	gMessage[messageId].pBody = (MessageBody_u *) (gMessage[messageId].pMsgBuff + sizeof(UbxPckHeader_s));
 
+	messageId = MessageIdGetCfgRxm;
+	bufferId = BufferIdGetSetCfgRxm;
+	gMessage[messageId].id = (MessageId_e) messageId;
+	gMessage[messageId].pMsgBuff = ubx_messages[bufferId];
+	gMessage[messageId].confirmType = TypeOfConfirmAck;
+	gMessage[messageId].pHead = (UbxPckHeader_s *) gMessage[messageId].pMsgBuff;
+	gMessage[messageId].pBody = (MessageBody_u *) (gMessage[messageId].pMsgBuff + sizeof(UbxPckHeader_s));
+
+	messageId = MessageIdSetCfgRxm;
+	bufferId = BufferIdGetSetCfgRxm;
+	gMessage[messageId].id = (MessageId_e) messageId;
+	gMessage[messageId].pMsgBuff = ubx_messages[bufferId];
+	gMessage[messageId].confirmType = TypeOfConfirmAck;
+	gMessage[messageId].pHead = (UbxPckHeader_s *) gMessage[messageId].pMsgBuff;
+	gMessage[messageId].pBody = (MessageBody_u *) (gMessage[messageId].pMsgBuff + sizeof(UbxPckHeader_s));
+
     messageId = MessageIdPollPvt;
     bufferId = BufferIdPollPvt;
     gMessage[messageId].id = (MessageId_e) messageId;
@@ -118,6 +134,12 @@ const Message_s * ubx_get_msg(MessageId_e msgId)
 		break;
 	case MessageIdSetCfgPm2:
 		ubx_set_cfgpm2(retVal->pMsgBuff);
+		break;
+	case MessageIdGetCfgRxm:
+		ubx_get_cfgrxm(retVal->pMsgBuff);
+		break;
+	case MessageIdSetCfgRxm:
+		ubx_set_cfgrxm(retVal->pMsgBuff);
 		break;
 	default:
 		retVal = MessageIdNone;
@@ -216,6 +238,35 @@ U16 ubx_set_cfgpm2(U8 * msg)
     //configure power mode:
 
     ubx_addchecksum(msg);
+
+	return 0;
+}
+
+U16 ubx_get_cfgrxm(U8 * msg)
+{
+	UbxPckHeader_s * pHead;
+
+	pHead = (UbxPckHeader_s *) msg;
+
+	pHead->ubxClass = ubxClassCfg;
+	pHead->ubxId = UbxClassIdCfgRxm;
+	pHead->length = 0;
+
+	ubx_addchecksum(msg);
+
+	return 0;
+}
+
+U16 ubx_set_cfgrxm(U8 * msg)
+{
+	UbxCfgRxm_s *pBody;
+
+    pBody = (UbxCfgRxm_s *) (msg + sizeof(UbxPckHeader_s));
+
+    //configure power mode:
+    pBody->lpMode = 1;
+
+	ubx_addchecksum(msg);
 
 	return 0;
 }
@@ -417,6 +468,41 @@ void ubx_msgst(const Message_s * pLastMsg, const U8 * pNewMsgData)
 		}
 		break;
 	case MessageIdSetCfgPm2:
+		//check if it a ACK was received
+		if (pNewHead->ubxClass == UbxClassIdAck &&
+				pNewHead->ubxId == UbxClassIdAckAck)
+		{
+			//we got ACK, check message ack class, id
+			pAckHead = (UbxAckMsg_s *) (pNewMsgData + sizeof(UbxPckHeader_s));
+			if (pAckHead->ackMsgCls == pLastHead->ubxClass &&
+					pAckHead->ackMsgId == pLastHead->ubxId)
+			{
+				//message ACKnowledged:
+				ubx_msg_confirmed(pLastMsg);
+			}
+			else
+			{
+				dbg_txerrmsg(4);
+			}
+		}
+		else
+		{
+			dbg_txerrmsg(5);
+		}
+		break;
+	case MessageIdGetCfgRxm:
+		//check if the same message came
+		if ((pNewHead->ubxClass == pLastHead->ubxClass) &&
+				(pNewHead->ubxId == pLastHead->ubxId))
+		{
+			ubx_msg_polled(pLastMsg, pNewMsgData);
+		}
+		else
+		{
+			dbg_txerrmsg(2);
+		}
+		break;
+	case MessageIdSetCfgRxm:
 		//check if it a ACK was received
 		if (pNewHead->ubxClass == UbxClassIdAck &&
 				pNewHead->ubxId == UbxClassIdAckAck)

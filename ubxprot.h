@@ -24,6 +24,8 @@ typedef enum MessageId_t
 	MessageIdSetCfgGnss = 6,
 	MessageIdPollCfgPm2 = 7,
 	MessageIdSetCfgPm2 = 8,
+	MessageIdGetCfgRxm = 9,
+	MessageIdSetCfgRxm = 10,
 }MessageId_e;
 
 typedef enum BufferId_t
@@ -33,6 +35,7 @@ typedef enum BufferId_t
 	BufferIdPollPvt = 2,
 	BufferIdPollSetCfgGnss = 3,
 	BufferIdPollSetCfgPm2 = 4,
+	BufferIdGetSetCfgRxm = 5,
 }BufferId_e;
 
 typedef enum UbxClass_t
@@ -69,6 +72,7 @@ typedef enum UbxClassIdCfg_t
 {
 	UbxClassIdAck = 0x05,
 	UbxClassIdCfgPrt = 0x00,
+	UbxClassIdCfgRxm = 0x11,
 	UbxClassIdCfgNmea = 0x17,
 	UbxClassIdCfgGnss = 0x3e,
 	UbxClassIdCfgPm2 = 0x3b,
@@ -141,6 +145,12 @@ typedef struct UbxCfgPm2_t
     U8  reserved3[20];
 }UbxCfgPm2_s;
 
+typedef struct UbxCfgRxm_t
+{
+    U8  reserved1;
+    U8  lpMode;
+}UbxCfgRxm_s;
+
 typedef struct UbxNavPvt_t
 {
     U32 iTOW;
@@ -188,6 +198,7 @@ typedef union MessageBody_t
 	UbxCfgPrt_s cfgPrt;
 	UbxCfgGnss_s cfgGnss;
 	UbxCfgPm2_s cfgPm2;
+	UbxCfgRxm_s cfgRxm;
 	UbxNavPvt_s navPvt;
 }MessageBody_u;
 
@@ -211,6 +222,8 @@ U16 ubx_poll_cfggnss(U8 * msg);
 U16 ubx_set_cfggnss(U8 * msg);
 U16 ubx_poll_cfgpm2(U8 * msg);
 U16 ubx_set_cfgpm2(U8 * msg);
+U16 ubx_get_cfgrxm(U8 * msg);
+U16 ubx_set_cfgrxm(U8 * msg);
 U16 ubx_poll_pvt(U8 * msg);
 
 U16 ubx_checkmsg(U8 * msg);
