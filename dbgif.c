@@ -44,10 +44,10 @@ void dbg_inituart(void)
 	// Fractional portion = 0.083
 	// User's Guide Table 21-4: UCBRSx = 0x04
 	// UCBRFx = int ( (52.083-52)*16) = 1
-	UCA0BR0 = 52;                             // 8000000/16/9600   for  9600baudrate
-	UCA0BR0 = 26;                             // 8000000/16/9600/2 for 19200baudrate
+	UCA0BR0 = 52;                             // 8000000/16/9600   for  9600baudrate, UCBRF_1, UCBRSx should be 0x49
+	UCA0BR0 = 26;                             // 8000000/16/9600/2 for 19200baudrate, UCBRF_0, UCBRSx should be 0xB6
 	UCA0BR1 = 0x00;
-	UCA0MCTLW |= UCOS16 | UCBRF_1 | 0x4900;
+	UCA0MCTLW |= UCOS16 | UCBRF_0 | 0xB600;
 	UCA0CTLW0 &= ~UCSWRST;                    // Release eUSCI reset
 
 	UCA0IE |= UCTXIE;
