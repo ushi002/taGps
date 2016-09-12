@@ -64,6 +64,7 @@ static Boolean gGpsPowerChange = false;
 static Boolean gGpsPowered = false;
 static Boolean gUsbPowerChange = false;
 static Boolean gUsbPowered = false;
+static Boolean gpower_save_mode_activated = false;
 static U16 gBlinkRed = 0;
 
 volatile U16 gAdcBatteryVal = 0;
@@ -306,7 +307,13 @@ int main(void)
 				if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx])
 				{
 					//blick green that we received gps pulse
-					led_flash_green_short();
+					if (gpower_save_mode_activated)
+					{
+						led_flash_green_short();
+					}else
+					{
+						led_flash_red_short();
+					}
 					//measure battery voltage
 					ADC12CTL0 ^= ADC12SC;
 
@@ -323,6 +330,14 @@ int main(void)
 				gps_rx_ubx_msg(ubxmsg, true);
 				if (ubxmsg->confirmed)
 				{
+					if (ubxmsg->pBody->navPvt.flags > 3)
+					{
+						gpower_save_mode_activated = true;
+					}else
+					{
+						gpower_save_mode_activated = false;
+					}
+
 					dbg_txmsg("\nConfirmed! ");
 					spiif_storeubx(ubxmsg);
 					//displej_this(ubxmsg->pBody->navPvt.year);
