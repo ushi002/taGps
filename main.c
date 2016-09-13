@@ -968,7 +968,7 @@ static void init_configure_gps(void)
 			led_error();
 			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
 			init_cfg_try_num = 0;
-			ubxmsg = ubx_get_msg(MessageIdPollCfgPm2);
+			ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
 			gps_initcmdtx(ubxmsg->pMsgBuff);
 		}
 	}
