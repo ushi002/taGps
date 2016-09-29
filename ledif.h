@@ -8,6 +8,7 @@
 #ifndef LEDIF_H_
 #define LEDIF_H_
 #include "typedefs.h"
+#include "gpsif.h"
 
 void led_initport(void);
 
@@ -56,6 +57,14 @@ static inline void led_swap_red(void)
 static inline void led_swap_green(void)
 {
 	P7OUT ^= BIT6;	//turn red led on
+}
+
+
+static inline void led_flash_msg_long(void)
+{
+	gps_set_txbusy(true);
+	TA3CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
+	TA3EX0 = TAIDEX_7;
 }
 
 void led_flash_green_short(void);

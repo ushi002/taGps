@@ -135,7 +135,7 @@ static void spi_pgstore(void)
 {
 	if (g_pages_stored+1 == MEM_MAX_PAGES)
 	{
-		dbg_txmsg("[!!] SPI memory is full! Won't store any UBX messages!");
+		dbg_txmsg("[!!] SPI mem!");
 		return;
 	}
 
@@ -196,7 +196,7 @@ void spiif_storeubx(const Message_s * ubx)
 
 	if (!spi_txempty())
 	{
-		dbg_txmsg("\nCannot store UBX message! SPI TX buffer is not empty!");
+		dbg_txmsg("\nCant store UBX message!");
 		return;
 	}
 

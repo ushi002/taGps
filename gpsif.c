@@ -9,6 +9,7 @@
 #include "gpsif.h"
 #include "dbgif.h"
 
+static Boolean gGpsTxInProgress = false;
 
 static U8 txbuff[TXB_SIZE];
 
@@ -18,6 +19,7 @@ static U8 g_txpop = 0;
 U8 * pgps_txbuf;
 U8 * pgps_txput;
 U8 * pgps_txpop;
+Boolean * pgGpsTxInProgress;
 
 static U8 gpsumsg[TXB_SIZE]; //GPS UBX message
 static UbxPckHeader_s * pGpsUMsgHead = (UbxPckHeader_s *) gpsumsg;
@@ -53,16 +55,20 @@ void gps_inituart(void)
 	pgps_txbuf = txbuff;
 	pgps_txput = &g_txput;
 	pgps_txpop = &g_txpop;
+	pgGpsTxInProgress = &gGpsTxInProgress;
 }
 
 //Interrupt enable
 void gps_ie(void)
 {
-	UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
+	//clear pending TX buffer empty flag which is set when UCSWRST=1
+	UCA1IFG &= ~UCTXIFG;
+
+	//UCA1IE |= UCRXIE;                         // Enable USCI_A1 RX interrupt
 	UCA1IE |= UCTXIE;
 
 	P2IFG &= ~BIT1;
-	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
+	//P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
 //Interrupt enable
 void gps_uart_enable(void)
@@ -79,6 +85,18 @@ void gps_id(void)
 	UCA1IE &= ~UCTXIE;
 
 	P2IE &= ~BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
+}
+
+//GPS pulse disable
+void gps_pulse_dis(void)
+{
+	P2IE &= ~BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
+}
+
+//GPS pulse disable
+void gps_pulse_en(void)
+{
+	P2IE |= BIT1;                             // P2.1 interrupt enable - GPS TIME-PULSE
 }
 
 //Interrupt disable
@@ -111,6 +129,14 @@ void gps_cmdtx(U8 * buff)
 	{
 		txb_push(&buff[i]);
 	}
+
+	//enable GPS RX interrupts
+	UCA1IE |= UCRXIE;
+	//and the previous TX is complete
+	//start the transmission now
+	//UCA1IFG &= ~UCTXCPTIFG;
+	UCA1TXBUF = gps_txbpop();
+
 }
 
 void gps_initcmdtx(U8 * buff)
@@ -172,7 +198,6 @@ Boolean gps_newchar(U8 * rxChar, Boolean interruptCall)
 	return retVal;
 }
 
-
 /** @brief Process received character from GPS
  *
  * @return  - 0 done for now
@@ -199,6 +224,10 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 		{
 			ubxstat = ubxstat_syncchar2;
 			gpsumsg[ubxBytePos++] = rxChar;
+		}else
+		{
+			//wrong message
+			retVal = 1;
 		}
 		break;
 	case ubxstat_syncchar2:
@@ -209,6 +238,8 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 		}else
 		{
 			ubxstat = ubxstat_idle;
+			//wrong message
+			retVal = 1;
 		}
 		break;
 	case ubxstat_msgclass:
@@ -232,7 +263,7 @@ U16 gps_rx_ubx_msg(const Message_s * lastMsg, Boolean interruptCall)
 		{
 			ubxstat = ubxstat_idle;
 			retVal = 3;
-			dbg_txmsg("\nIncoming UBX too long!");
+			//dbg_txmsg("\nIncoming UBX too long!");
 		}
 		if (ubxBytePos >= (pGpsUMsgHead->length + sizeof(UbxPckHeader_s) + sizeof(UbxPckChecksum_s)))
 		{

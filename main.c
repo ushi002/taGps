@@ -46,6 +46,7 @@ U16 gGpsDiv = 0;
 #define CHECKACK	0x04
 #define PC_UART_RX	0x08
 #define BUTTON1		0x10
+#define NXTGPSCMD   0x20
 
 typedef enum ButtonStep_t {
 	buttonStep_poll_cfg = 0,
@@ -59,12 +60,14 @@ typedef enum ButtonStep_t {
 //#pragma PERSISTENT(cmdToDo)
 static U16 cmdToDo = 0;
 static Boolean gGpsInitialized = false;
+static Boolean gGpsRestarted = false;
 
 static Boolean gGpsPowerChange = false;
 static Boolean gGpsPowered = false;
 static Boolean gUsbPowerChange = false;
 static Boolean gUsbPowered = false;
 static Boolean gpower_save_mode_activated = false;
+//static Boolean gContinue = false;
 static U16 gBlinkRed = 0;
 
 volatile U16 gAdcBatteryVal = 0;
@@ -76,11 +79,10 @@ static U16 gps_time_pulse_secs_idx = 0;
 //number of generated GPS time pulses
 static U16 gps_time_pulse_num = 0;
 
-static void init_configure_gps(void);
-
 int main(void)
 {
 	const Message_s * ubxmsg;
+	U16 msgPollCfgPrt = 0;
 
 	//WDOG disable
 	WDTCTL = WDTPW | WDTHOLD;
@@ -157,24 +159,36 @@ int main(void)
 	TA1CCTL0 = CCIE;                          // TACCR0 interrupt enabled
 	TA1CCR0 = 50000;
 	TA1CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
-	//new timer for DELAY?? or use the same for RED LED??
+	//new timer for DELAY, TODO: merge green, red and delay timer
 	TA2CCTL0 = CCIE;                          // TACCR0 interrupt enabled
 	TA2CCR0 = 50000;
 	TA2CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
 
-#ifdef ARTIFICIAL_GPS
-	//Artificial GPS pulse
+	//GPS ubx message timouter
 	TA3CCTL0 = CCIE;                          // TACCR0 interrupt enabled
 	TA3CCR0 = 50000;
 	TA3CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
-	TA3CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
-	TA3EX0 = TAIDEX_7;
-#endif
 
-	dbg_inituart();
+	//dbg_inituart();
 	gps_inituart();
 	spi_init();
 	ubx_init();
+
+	//enable interruputs
+	__bis_SR_register(GIE);
+	if (pcif_has_power())
+	{
+		pcif_enif();
+		//USB will read/write SPI
+		spi_enrx();
+	}else
+	{
+		//disable PC communication
+		pcif_disif();
+		//without USB no reads from the SPI memory
+		spi_disrx();
+	}
+	gps_pulse_dis();
 
 	dbg_txmsg("\nWelcome to taGPS program. Last reset: ");
 	U16 tmp;
@@ -184,40 +198,28 @@ int main(void)
 	//highbyte to hex:
 	txch = (tmp>>12) & 0xf;
 	txch = util_num2hex(&txch);
-	dbg_txchar(&txch);
+	dbg_txchar(txch);
 
 	txch = (tmp>>8) & 0xf;
 	txch = util_num2hex(&txch);
-	dbg_txchar(&txch);
+	dbg_txchar(txch);
 
 	//lowbyte to hex:
 	txch = (tmp>>4) & 0xf;
 	txch = util_num2hex(&txch);
-	dbg_txchar(&txch);
+	dbg_txchar(txch);
 
 	txch = tmp & 0xf;
 	txch = util_num2hex(&txch);
-	dbg_txchar(&txch);
+	dbg_txchar(txch);
 	txch = '\n';
-	dbg_txchar(&txch);
+	dbg_txchar(txch);
 	txch = '\r';
-	dbg_txchar(&txch);
+	dbg_txchar(txch);
 	dbg_txmsg("\nEnter the operational mode and sleep...");
 
 	while (1)
 	{
-
-		if (!gps_txempty() && !(UCA1STATW & UCBUSY))
-		{
-			//send a character to GPS
-			UCA1TXBUF = gps_txbpop();
-		}
-
-		if (!buff_empty() && !(UCA0STATW & UCBUSY))
-		{
-			//send an SPI FLASH character to PC UART
-			UCA0TXBUF = buff_pop();
-		}
 
 		if (!spi_txempty() && !(UCB0STATW & UCBUSY))
 		{
@@ -227,9 +229,12 @@ int main(void)
 
 		if (!cmdToDo)
 		{
-			//nothing to do, fall asleep
-			__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
-			__no_operation();                       // For debugger
+			//if (!gGpsPowered || (gGpsPowered && gGpsInitialized))
+			{
+				//nothing to do, fall asleep
+				__bis_SR_register(LPM3_bits | GIE);     // Enter LPM3, interrupts enabled
+				__no_operation();                       // For debugger
+			}
 		}
 
 		if (gUsbPowerChange && gUsbPowered)
@@ -254,15 +259,14 @@ int main(void)
 		{
 			gGpsPowerChange = false;
 			gps_uart_enable();
+			gps_ie(); //enable interrupts
 			if (!gGpsInitialized)
 			{
-				init_configure_gps();
-				gGpsInitialized = true;
-				gps_ie(); //enable interrupts
-				//flash long green that we have configured GPS chip
-				led_flash_green_long();
-				//store page indicating the start of a session:
-				spiif_storeubx(0);
+				//init_configure_gps();
+				//prepare port cfg msg
+				ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+				//send it
+				gps_cmdtx(ubxmsg->pMsgBuff);
 			}
 		}
 		if (gGpsPowerChange && !gGpsPowered)
@@ -277,15 +281,14 @@ int main(void)
 
 		}
 
-		if (!gGpsPowered && !gGpsInitialized)
+		if (!gGpsPowered)
 		{
 			if (cmdToDo & BUTTON1)
 			{
 				cmdToDo &= ~BUTTON1;
 			}
 		}
-
-		if (gGpsPowered && gGpsInitialized)
+		if (gGpsPowered)
 		{
 			if (cmdToDo & BUTTON1)
 			{
@@ -299,14 +302,23 @@ int main(void)
 				}
 				gBlinkRed = gps_pulse_cfg_ar[gps_time_pulse_secs_idx];
 			}
+		}
 
+		if (gGpsPowered && gGpsInitialized)
+		{
 			if (cmdToDo & GPS_PULSE)
 			{
 				cmdToDo &= ~GPS_PULSE;
 				gps_time_pulse_num++;
 				if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx])
 				{
-					//blick green that we received gps pulse
+					//measure battery voltage
+					ADC12CTL0 ^= ADC12SC;
+					gps_time_pulse_num = 0;
+					//dbg_txmsg("\nPoll GPS status");
+					//dbg_txmsg("P.");
+					ubxmsg = ubx_get_msg(MessageIdPollPvt);
+					gps_cmdtx(ubxmsg->pMsgBuff);
 					if (gpower_save_mode_activated)
 					{
 						led_flash_green_short();
@@ -314,34 +326,171 @@ int main(void)
 					{
 						led_flash_red_short();
 					}
-					//measure battery voltage
-					ADC12CTL0 ^= ADC12SC;
-
-					gps_time_pulse_num = 0;
-					dbg_txmsg("\nPoll GPS status");
-					ubxmsg = ubx_get_msg(MessageIdPollPvt);
-					gps_cmdtx(ubxmsg->pMsgBuff);
 				}
 			}
+		}
 
-			if (cmdToDo & GPSRXCHAR)
+		if (gGpsPowered && !gGpsInitialized)
+		{
+			if (cmdToDo & GPS_PULSE)
 			{
-				cmdToDo &= ~GPSRXCHAR;
-				gps_rx_ubx_msg(ubxmsg, true);
-				if (ubxmsg->confirmed)
+				cmdToDo &= ~GPS_PULSE;
+				//configure power save mode
+				ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
+				gps_cmdtx(ubxmsg->pMsgBuff);
+				led_flash_green_short();
+			}
+		}
+
+		if (cmdToDo & NXTGPSCMD)
+		{
+			cmdToDo &= ~NXTGPSCMD;
+
+			if ((ubxmsg > 0) && (ubxmsg->confirmed))
+			{
+				//dbg_txmsg("C.", 2);
+				switch (ubxmsg->id)
 				{
+				case MessageIdPollCfgPrt:
+					ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
+					break;
+				case MessageIdSetCfgPrt:
+					//ubxmsg = ubx_get_msg(MessageIdPollCfgGnss); configure power save mode later on
+#ifdef ARTIFICIAL_GPS
+					//Artificial GPS pulse
+					TB0CCTL0 = CCIE;                          // TACCR0 interrupt enabled
+					TB0CCR0 = 50000;
+					TB0CTL = TASSEL__SMCLK | MC__STOP;        // SMCLK, do not count yet
+					TB0CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
+					TB0EX0 = TAIDEX_7;
+#endif
+					ubxmsg = 0;
+					led_flash_green_long();
+					gps_pulse_en();
+					msgPollCfgPrt++;
+					break;
+				case MessageIdPollCfgGnss:
+//					gContinue = true;
+//					while(0){
+//						__bis_SR_register(GIE);
+//					};
+					ubxmsg = ubx_get_msg(MessageIdSetCfgGnss);
+					break;
+				case MessageIdSetCfgGnss:
+//					gContinue = true;
+//					while(0){
+//						__bis_SR_register(GIE);
+//					};
+					//dbg_txmsg("\nPoll UBX CFG PM2 message: ");
+					ubxmsg = ubx_get_msg(MessageIdPollCfgPm2);
+					break;
+				case MessageIdPollCfgPm2:
+//					gContinue = true;
+//					while(gContinue){
+//						__bis_SR_register(GIE);
+//					};
+					//dbg_txmsg("\nGet UBX CFG RXM message: ");
+					ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
+					//msgPollCfgPrt = 0;
+					break;
+				case MessageIdGetCfgRxm:
+//					gContinue = true;
+//					while(gContinue){
+//						__bis_SR_register(GIE);
+//					};
+					//configure power save
+					ubxmsg = ubx_get_msg(MessageIdSetCfgRxm);
+					//msgPollCfgPrt++;
+					break;
+				case MessageIdSetCfgRxm:
+//					gContinue = true;
+//					while(gContinue){
+//						__bis_SR_register(GIE);
+//					};
+					//turn of the message confirmation
+					//ubxmsg = 0;
+					//check again if the power mode is set:
+					ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
+					//if (msgPollCfgPrt>1) ..DEBUG..
+					if (1)
+					{
+						led_flash_green_long();
+						if (!gGpsInitialized && !gGpsRestarted)
+						{
+							//store page indicating the start of a session:
+							spiif_storeubx(0);
+						}
+						gGpsRestarted = false;
+						gps_pulse_en();
+						gGpsInitialized = true;
+						//TEST without GPS pulse...
+						//gps_pulse_en();
+						//enable GPS RX interrupts
+						UCA1IE |= UCRXIE;
+						////TEST without GPS pulse...
+						ubxmsg = 0;
+					}
+					break;
+				case MessageIdPollPvt:
+//					gContinue = true;
+//					while(gContinue){
+//						__bis_SR_register(GIE);
+//					};
+					spiif_storeubx(ubxmsg);
 					if (ubxmsg->pBody->navPvt.flags > 3)
 					{
 						gpower_save_mode_activated = true;
+						ubxmsg = 0;
+						//blick green that we received gps pulse
+						led_flash_green_short();
 					}else
 					{
 						gpower_save_mode_activated = false;
+						//configure power save mode again:
+						ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
+						gps_pulse_dis();
+						led_flash_red_short();
 					}
-
-					dbg_txmsg("\nConfirmed! ");
-					spiif_storeubx(ubxmsg);
 					//displej_this(ubxmsg->pBody->navPvt.year);
-					ubx_get_msg(MessageIdPollPvt);
+					break;
+				default:
+					led_flash_red_long();
+					break;
+				}
+			}
+			//send again the old or the next command except MessageIdPollPvt
+			if (ubxmsg->id == MessageIdPollPvt)
+			{
+				ubxmsg = 0;
+			}
+			if ((ubxmsg > 0))
+			{
+				//dbg_txmsg("P.", 2);
+				//dbg_txmsg(".", 1);
+				gps_cmdtx(ubxmsg->pMsgBuff);
+			}
+		}
+
+		if (cmdToDo & GPSRXCHAR)
+		{
+			cmdToDo &= ~GPSRXCHAR;
+			tmp = gps_rx_ubx_msg(ubxmsg, true);
+			if (tmp == 5)
+			{
+				led_off_red();
+				led_flash_green_short();
+				__no_operation();
+			}else
+			{
+				if(tmp > 0 && gGpsInitialized)
+				{
+					//probably GPS has restarted... turn of NMEA
+					gGpsInitialized = false;
+					gGpsRestarted = true;
+					gps_pulse_dis();
+					ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+					//send it
+					gps_cmdtx(ubxmsg->pMsgBuff);
 				}
 			}
 		}
@@ -456,18 +605,20 @@ void __attribute__ ((interrupt(TIMER2_A0_VECTOR))) Timer2_A0_ISR (void)
 {
 	TA2CTL = MC__STOP;        // SMCLK, do not count yet
 	TA2EX0 = TAIDEX_0; 		  //clear extended divider
-	if (gBlinkRed > 0)
+
 	{
-		gBlinkRed--;
-		led_flash_red_short();
-	}
-	if (gBlinkRed == 0)
-	{
-		but_yellow_enable();
+		if (gBlinkRed > 0)
+		{
+			gBlinkRed--;
+			led_flash_red_short();
+		}
+		if (gBlinkRed == 0)
+		{
+			but_yellow_enable();
+		}
 	}
 }
 
-#ifdef ARTIFICIAL_GPS
 // Timer3_A0 for delays interrupt service routine
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
 #pragma vector = TIMER3_A0_VECTOR
@@ -478,9 +629,39 @@ void __attribute__ ((interrupt(TIMER3_A0_VECTOR))) Timer3_A0_ISR (void)
 #error Compiler not supported!
 #endif
 {
+	TA3CTL = MC__STOP;        // SMCLK, do not count yet
+	TA3EX0 = TAIDEX_0; 		  //clear extended divide
+
+	if (gps_get_txbusy())
+	{
+		gps_set_txbusy(false);
+		//wake up and look if message is confirmed
+		cmdToDo |= NXTGPSCMD;
+
+		//disable new RX chars receiving
+		//TEST: koment this when not using the GPS PULSE..
+		//UCA1IE &= ~UCRXIE;
+
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
+		__no_operation();
+
+	}
+}
+
+// Timer3_B7 for delays interrupt service routine
+#ifdef ARTIFICIAL_GPS
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector = TIMER0_B0_VECTOR
+__interrupt void Timer0_B0_ISR (void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(TIMER)_B0_VECTOR))) Timer0_B0_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
 	__no_operation();
 	gGpsDiv += 1;
-	if (gGpsDiv > 2)
+	if (gGpsDiv > 8)
 	{
 		gGpsDiv = 0;
 		P2IFG |= BIT1;  //generate GPS pulse interrupt
@@ -504,17 +685,34 @@ void __attribute__ ((interrupt(USCI_A0_VECTOR))) USCI_A0_ISR (void)
 	case USCI_UART_UCRXIFG:
 		P6OUT ^= BIT5 | BIT6;                      // Toggle LEDs
 		cmdToDo |= PC_UART_RX;
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
 		break;
 	case USCI_UART_UCTXIFG:
+		//clear complete transfer
+		UCA0IFG &= ~UCTXCPTIFG;
 		if (!buff_empty())
 		{
 			UCA0TXBUF = buff_pop();
+		}else
+		{
+			//cover blind spot by setting
+			UCA0IE |= UCTXCPTIE;
 		}
 		break;
 	case USCI_UART_UCSTTIFG: break;
-	case USCI_UART_UCTXCPTIFG: break;
+	case USCI_UART_UCTXCPTIFG:
+		//turn off blind stop
+		UCA0IE &= ~UCTXCPTIE;
+		if (!buff_empty())
+		{
+			UCA0TXBUF = buff_pop();
+		}else
+		{
+			//prepare for next buffer push()
+			UCA0IFG |= UCTXCPTIFG;
+		}
+		break;
 	}
 }
 
@@ -532,18 +730,35 @@ void __attribute__ ((interrupt(USCI_A1_VECTOR))) USCI_A1_ISR (void)
 	{
 	case USCI_NONE: break;
 	case USCI_UART_UCRXIFG:
+		P7OUT ^= BIT7;
 		cmdToDo |= GPSRXCHAR;
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
 		break;
 	case USCI_UART_UCTXIFG:
 		if (!gps_txempty())
 		{
 			UCA1TXBUF = gps_txbpop();
+		}else
+		{
+			//clear flag
+			UCA1IFG &= ~UCTXCPTIFG;
+			//wait until the last char is sent out
+			UCA1IE |= UCTXCPTIE;
 		}
 		break;
 	case USCI_UART_UCSTTIFG: break;
-	case USCI_UART_UCTXCPTIFG: break;
+	case USCI_UART_UCTXCPTIFG:
+		//if we configure GPS start timeout
+		//if (!gGpsInitialized)
+		{
+			led_flash_msg_long();
+		}
+		//turn off this interrupt
+		UCA1IE &= ~UCTXCPTIE;
+		//clear flag
+		//UCA1IFG |= UCTXCPTIFG;
+		break;
 	}
 }
 
@@ -560,16 +775,11 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 	switch(__even_in_range(P2IV, P2IV_P2IFG7))
 	{
 	case P2IV_NONE: break;
-	case P2IV_P2IFG0:
-		cmdToDo |= BUTTON1;
-		//?? musi? P2IE &= ~BIT0;  //disable following interrupts
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
-		__no_operation();
-		break;
+	case P2IV_P2IFG0: break;
 	case P2IV_P2IFG1:
 		//GPS TIME PULSE:
 		cmdToDo |= GPS_PULSE;
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
 		//23*4 bajtu je NAV message...
 		//264 bajtu/stranka
@@ -590,7 +800,7 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) Port_2 (void)
 			P2IES &= ~BIT2;                                // P2.2 Lo-to-Hi edge
 			gGpsPowerChange = true;
 		}
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
 		break;
 	case P2IV_P2IFG3: break;
@@ -631,7 +841,7 @@ void __attribute__ ((interrupt(PORT3_VECTOR))) Port_3 (void)
 			P3IES &= ~BIT2;                                // P3.2 Lo-to-Hi edge
 			gUsbPowerChange = true;
 		}
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
 		break;
 	case P3IV_P3IFG3: break;
@@ -639,8 +849,9 @@ void __attribute__ ((interrupt(PORT3_VECTOR))) Port_3 (void)
 	case P3IV_P3IFG5: break;
 	case P3IV_P3IFG6: break;
 	case P3IV_P3IFG7:
+		//gContinue = false; clear following for better testing...
 		cmdToDo |= BUTTON1;
-		__bic_SR_register_on_exit(LPM3_bits);     // Exit LPM3
+		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
 		break;
 	}
@@ -670,343 +881,4 @@ void __attribute__ ((interrupt(USCI_B0_VECTOR))) USCI_B0_ISR (void)
       break;
     default: break;
   }
-}
-
-static void init_configure_gps(void)
-{
-	const Message_s * ubxmsg;
-	U16 rx_msg_res;
-	U16 init_cfg_try_num;
-	Boolean init_seq = true;
-
-	//reinitialize GPS UART
-	//gps_inituart();
-
-	dbg_txmsg("\nPoll UBX CFG PORT message:\n");
-	//prepare port cfg msg
-	ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-	//send it
-	gps_initcmdtx(ubxmsg->pMsgBuff);
-	//wait for answer:
-	init_cfg_try_num = 0;
-	while(init_seq)
-	{
-		init_cfg_try_num++;
-		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-		switch(rx_msg_res)
-		{
-		case 3:
-			dbg_txmsg("\nUBX message too long!");
-			break;
-		case 4:
-			dbg_txmsg("\nUBX message CRC Error!");
-			break;
-		case 5:
-			if (ubxmsg->confirmed)
-			{
-				init_seq = false;
-				dbg_txmsg("\nUBX message confirmed.");
-				init_cfg_try_num = 0;
-			}
-			break;
-		case 0:
-			//waiting for next character
-			break;
-		default:
-			dbg_txmsg("\nGPS unknown ERROR!");
-			break;
-
-		}
-
-		if (init_cfg_try_num > (USHRT_MAX>>2))
-		{
-			led_error();
-			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
-			init_cfg_try_num = 0;
-			ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-			gps_initcmdtx(ubxmsg->pMsgBuff);
-		}
-	}
-
-	dbg_txmsg("\n\nTurning off NMEA GPS port... ");
-	while(1)
-	{
-		ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
-		gps_initcmdtx(ubxmsg->pMsgBuff);
-		while(1)
-		{
-			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-			if (rx_msg_res != 0)
-			{
-				//message received
-				break;
-			}else
-			{
-				init_cfg_try_num++;
-				if (init_cfg_try_num > (USHRT_MAX>>2))
-				{
-					//try again
-					init_cfg_try_num = 0;
-					break;
-				}
-			}
-
-		}
-		if (!ubxmsg->confirmed)
-		{
-			dbg_txmsg("\n\nMessage not confirmed, trying again... ");
-		}else
-		{
-			break;
-		}
-	}
-	dbg_txmsg("...NMEA GPS port is off.");
-
-	dbg_txmsg("\nPoll UBX CFG GNSS message:\n");
-	//prepare port cfg msg
-	ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
-	//send it
-	gps_initcmdtx(ubxmsg->pMsgBuff);
-	//wait for answer:
-	init_cfg_try_num = 0;
-	init_seq = true;
-	while(init_seq)
-	{
-		init_cfg_try_num++;
-		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-		switch(rx_msg_res)
-		{
-		case 3:
-			dbg_txmsg("\nUBX message too long!");
-			break;
-		case 4:
-			dbg_txmsg("\nUBX message CRC Error!");
-			break;
-		case 5:
-			if (ubxmsg->confirmed)
-			{
-				init_seq = false;
-				dbg_txmsg("\nUBX message confirmed.");
-				init_cfg_try_num = 0;
-			}
-			break;
-		case 0:
-			//waiting for next character
-			break;
-		default:
-			dbg_txmsg("\nGPS unknown ERROR!");
-			break;
-
-		}
-
-		if (init_cfg_try_num > (USHRT_MAX>>2))
-		{
-			led_error();
-			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
-			init_cfg_try_num = 0;
-			ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
-			gps_initcmdtx(ubxmsg->pMsgBuff);
-		}
-	}
-
-	dbg_txmsg("\n\nSetup GNSS configuration for GPS only... ");
-	while(1)
-	{
-		ubxmsg = ubx_get_msg(MessageIdSetCfgGnss);
-		gps_initcmdtx(ubxmsg->pMsgBuff);
-		while(1)
-		{
-			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-			if (rx_msg_res != 0)
-			{
-				//message received
-				break;
-			}else
-			{
-				init_cfg_try_num++;
-				if (init_cfg_try_num > (USHRT_MAX>>2))
-				{
-					//try again
-					init_cfg_try_num = 0;
-					break;
-				}
-			}
-
-		}
-		if (!ubxmsg->confirmed)
-		{
-			dbg_txmsg("\n\nMessage not confirmed, trying again... ");
-		}else
-		{
-			break;
-		}
-	}
-	dbg_txmsg("...GNSS for GPS is configured.");
-
-	dbg_txmsg("\nPoll UBX CFG PM2 message: ");
-	//prepare port cfg msg
-	ubxmsg = ubx_get_msg(MessageIdPollCfgPm2);
-	//send it
-	gps_initcmdtx(ubxmsg->pMsgBuff);
-	//wait for answer:
-	init_cfg_try_num = 0;
-	init_seq = true;
-	while(init_seq)
-	{
-		init_cfg_try_num++;
-		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-		switch(rx_msg_res)
-		{
-		case 3:
-			dbg_txmsg("\nUBX message too long!");
-			break;
-		case 4:
-			dbg_txmsg("\nUBX message CRC Error!");
-			break;
-		case 5:
-			if (ubxmsg->confirmed)
-			{
-				init_seq = false;
-				dbg_txmsg("\nUBX message confirmed.");
-				init_cfg_try_num = 0;
-			}
-			break;
-		case 0:
-			//waiting for next character
-			break;
-		default:
-			dbg_txmsg("\nGPS unknown ERROR!");
-			break;
-
-		}
-
-		if (init_cfg_try_num > (USHRT_MAX>>2))
-		{
-			led_error();
-			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
-			init_cfg_try_num = 0;
-			ubxmsg = ubx_get_msg(MessageIdPollCfgPm2);
-			gps_initcmdtx(ubxmsg->pMsgBuff);
-		}
-	}
-	dbg_txmsg("...polled\n");
-
-//	dbg_txmsg("\n\nSetup power mode... ");
-	//SOME FLAFS of PM2 CFG does not match U-BLOX8 protocol!... Consult it..
-//	while(1)
-//	{
-//		ubxmsg = ubx_get_msg(MessageIdSetCfgGnss);
-//		gps_initcmdtx(ubxmsg->pMsgBuff);
-//		while(1)
-//		{
-//			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-//			if (rx_msg_res != 0)
-//			{
-//				//message received
-//				break;
-//			}else
-//			{
-//				init_cfg_try_num++;
-//				if (init_cfg_try_num > (USHRT_MAX>>2))
-//				{
-//					//try again
-//					init_cfg_try_num = 0;
-//					break;
-//				}
-//			}
-//
-//		}
-//		if (!ubxmsg->confirmed)
-//		{
-//			dbg_txmsg("\n\nMessage not confirmed, trying again... ");
-//		}else
-//		{
-//			break;
-//		}
-//	}
-//	dbg_txmsg("...power mode is configured.");
-
-	dbg_txmsg("\nGet UBX CFG RXM message: ");
-	//prepare port cfg msg
-	ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
-	//send it
-	gps_initcmdtx(ubxmsg->pMsgBuff);
-	//wait for answer:
-	init_cfg_try_num = 0;
-	init_seq = true;
-	while(init_seq)
-	{
-		init_cfg_try_num++;
-		rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-		switch(rx_msg_res)
-		{
-		case 3:
-			dbg_txmsg("\nUBX message too long!");
-			break;
-		case 4:
-			dbg_txmsg("\nUBX message CRC Error!");
-			break;
-		case 5:
-			if (ubxmsg->confirmed)
-			{
-				init_seq = false;
-				dbg_txmsg("\nUBX message confirmed.");
-				init_cfg_try_num = 0;
-			}
-			break;
-		case 0:
-			//waiting for next character
-			break;
-		default:
-			dbg_txmsg("\nGPS unknown ERROR!");
-			break;
-
-		}
-
-		if (init_cfg_try_num > (USHRT_MAX>>2))
-		{
-			led_error();
-			dbg_txmsg("\nInit UBX message error! Send again poll cfg...");
-			init_cfg_try_num = 0;
-			ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
-			gps_initcmdtx(ubxmsg->pMsgBuff);
-		}
-	}
-	dbg_txmsg("...polled\n");
-
-	dbg_txmsg("\n\nConfigure power save mode... ");
-	while(1)
-	{
-		ubxmsg = ubx_get_msg(MessageIdSetCfgRxm);
-		gps_initcmdtx(ubxmsg->pMsgBuff);
-		while(1)
-		{
-			rx_msg_res = gps_rx_ubx_msg(ubxmsg, false);
-			if (rx_msg_res != 0)
-			{
-				//message received
-				break;
-			}else
-			{
-				init_cfg_try_num++;
-				if (init_cfg_try_num > (USHRT_MAX>>2))
-				{
-					//try again
-					init_cfg_try_num = 0;
-					break;
-				}
-			}
-
-		}
-		if (!ubxmsg->confirmed)
-		{
-			dbg_txmsg("\n\nMessage not confirmed, trying again... ");
-		}else
-		{
-			break;
-		}
-	}
-	dbg_txmsg("on.");
-
-	led_ok();
 }

@@ -14,7 +14,6 @@ extern U8 * pg_rxspi_txpc_buff;
 extern U16 * pg_rxspi_txpc_pop;
 extern U16 * pg_rxspi_txpc_put;
 
-
 //when received uknown character then it is echoed
 U8 g_dbgif_echo = '0';
 
@@ -50,6 +49,10 @@ void dbg_inituart(void)
 	UCA0MCTLW |= UCOS16 | UCBRF_0 | 0xB600;
 	UCA0CTLW0 &= ~UCSWRST;                    // Release eUSCI reset
 
+	//prepare complete transfer for first transfer
+	UCA0IFG |= UCTXCPTIFG;
+	//clear pending TX buffer empty flag which is set when UCSWRST=1
+	UCA0IFG &= ~UCTXIFG;
 	UCA0IE |= UCTXIE;
 
 }
@@ -61,13 +64,12 @@ void gps_txchars(U8 * buff, U16 len)
 
 void dbg_txerrmsg(U8 err_code)
 {
-	I16 i;
-
-	for (i = 0; i < ERR_MSG_LEN; i++)
-	{
-		while(!(UCA0IFG&UCTXIFG)); //wait until UCA0 TX empty
-		UCA0TXBUF = err_msg[err_code][i];
-	}
+//	I16 i;
+//
+//	for (i = 0; i < ERR_MSG_LEN; i++)
+//	{
+//		dbg_txchar(&err_msg[err_code][i]);
+//	}
 }
 
 void dbg_txmsg(char * msg)
@@ -84,16 +86,29 @@ void dbg_txmsg(char * msg)
 		buff_put(msg[i]);
 		if (msg[i] == '\n')
 		{
-			//when a new line requested
-			//insert carriage return
 			buff_put('\r');
 		}
 	}
+	if(UCA0IFG & UCTXCPTIFG)
+	{
+		//we have empty UART TX character buffer
+		//and the previous TX is complete
+		//enable the transmission now
+		UCA0IE |= UCTXCPTIE;
+	}
 }
 
-void dbg_txchar(U8 * c)
+void dbg_txchar(U8 c)
 {
-	buff_put(*c);
+	buff_put(c);
+
+	if(UCA0IFG & UCTXCPTIFG)
+	{
+		//we have empty UART TX character buffer
+		//and the previous TX is complete
+		//enable the transmission now
+		UCA0IE |= UCTXCPTIE;
+	}
 }
 
 void pcif_rxchar(void)
@@ -108,7 +123,7 @@ void pcif_rxchar(void)
 	{
 	case 's':
 		//export status
-
+//#define OUTPUT_PRINT_HEX
 #ifdef OUTPUT_PRINT_HEX
 
 		tmp = spi_getpgnum();
@@ -116,33 +131,33 @@ void pcif_rxchar(void)
 		//highbyte to hex:
 		txch = (tmp>>12) & 0xf;
 		txch = util_num2hex(&txch);
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 
 		txch = (tmp>>8) & 0xf;
 		txch = util_num2hex(&txch);
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 
 		//lowbyte to hex:
 		txch = (tmp>>4) & 0xf;
 		txch = util_num2hex(&txch);
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 
 		txch = tmp & 0xf;
 		txch = util_num2hex(&txch);
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 		txch = '\n';
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 		txch = '\r';
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 
 #else //OUTPUT_PRINT_HEX
 
 		tmp = spi_getpgnum();
 		//highbyte to hex:
 		txch = (tmp>>8) & 0xff;
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 		txch = (tmp) & 0xff;
-		dbg_txchar(&txch);
+		dbg_txchar(txch);
 
 #endif //OUTPUT_PRINT_HEX
 
@@ -164,7 +179,11 @@ void pcif_rxchar(void)
 			while(UCA0STATW & UCBUSY); //wait until TX PC uart is not busy
 
 			UCB0TXBUF = spi_txchpop();
-			while(!spi_txempty());
+			while(!spi_txempty())
+			{
+				//we need GIE!
+				__bis_SR_register(GIE);
+			}
 
 			//we have now the page loaded, send it to uart...
 			//*pg_rxspi_txpc_put = MEM_PAGE_SIZE;
@@ -178,23 +197,31 @@ void pcif_rxchar(void)
 		break;
 	}
 	//transmit done interrupt flag to start new transmission:
-	UCA0IFG |= UCTXIFG;
+	//UCA0IFG |= UCTXIFG;
 }
 
 /** Enable receiving PC UART commands telemetry */
 void pcif_enif(void)
 {
-	//set the clock again:
-	UCA0CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
-	UCA0CTLW0 &= ~UCSWRST;                    // Release eUSCI reset
-	UCA0IFG &= ~UCRXIFG;
+	dbg_inituart();
+//	//set the clock again:
+//	UCA0CTLW0 |= UCSSEL__SMCLK;               // CLK = SMCLK
+//	UCA0CTLW0 &= ~UCSWRST;                    // Release eUSCI reset
+//	UCA0IFG &= ~UCRXIFG;
+//
+//	//prepare complete transfer for first transfer
+//	UCA0IFG |= UCTXCPTIFG;
+//	//clear pending TX buffer empty flag which is set when UCSWRST=1
+//	UCA0IFG &= ~UCTXIFG;
+	UCA0IE |= UCTXCPTIE;
+//
 	UCA0IE |= UCRXIE;
 }
 
 /** Disable receiving PC UART commands and telemetry */
 void pcif_disif(void)
 {
-	UCA0IE &= ~(UCRXIE);
+	UCA0IE &= ~(UCRXIE | UCTXIE);
 	UCA0CTLW0 = UCSWRST;                      // Put eUSCI in reset
 }
 

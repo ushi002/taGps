@@ -20,7 +20,7 @@ void dbg_inituart(void);
 
 void dbg_txerrmsg(U8 err_code);
 void dbg_txmsg(char * msg);
-void dbg_txchar(U8 * pChar);
+void dbg_txchar(U8 c);
 
 void pcif_rxchar(void);
 void pcif_enif(void);
