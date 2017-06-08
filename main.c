@@ -437,7 +437,7 @@ int main(void)
 						spiif_storeubx(ubxmsg);
 						led_flash_red_short();
 					}
-					if (ubxmsg->pBody->navPvt.flags > 3)
+					if ((ubxmsg->pBody->navPvt.flags >> 2) == 4) //4=power optimized tracking
 					{
 						gpower_save_mode_activated = true;
 						ubxmsg = 0;
