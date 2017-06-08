@@ -202,10 +202,25 @@ U16 ubx_set_cfggnss(U8 * msg)
 
     pBody = (UbxCfgGnss_s *) (msg + sizeof(UbxPckHeader_s));
 
-    //disable all except GPS:
+    //disable BeiDou and GLONASS to be able to go to power-save-mode
     for (i=1; i<CFG_GNSS_BLOCKS; i++)
     {
-		pBody->gnssBlock[i].flags &= ~1;
+    	switch (pBody->gnssBlock[i].gnssId)
+    	{
+    	case 0: //GPS
+    	case 1: //SBAS
+    	case 2: //Galileo
+    	case 4: //IMES
+    	case 5: //QZSS
+    		//enable
+    		pBody->gnssBlock[i].flags |= 1;
+			break;
+    	case 3: //BeiDou
+    	case 6: //GLONASS
+    		//disable to be able to use power-save-mode
+    		pBody->gnssBlock[i].flags &= ~1;
+			break;
+    	}
     }
 
     ubx_addchecksum(msg);

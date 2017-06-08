@@ -60,11 +60,22 @@ static inline void led_swap_green(void)
 }
 
 
-static inline void led_flash_msg_long(void)
+static inline void led_flash_msg_long(U16 pulseCfg)
 {
 	gps_set_txbusy(true);
-	TA3CTL = TASSEL__SMCLK | ID__8 | MC__UP;        // SMCLK, start timer
-	TA3EX0 = TAIDEX_7;
+	TA3CCTL0 = 0; //disable CCIE flag
+	TA3CTL = TACLR;
+	if (pulseCfg > 0)
+	{//for response longer than 1 second the Ublox answer in 1.1s ... count up and down
+		TA3CCR0 = 0xffff;
+		TA3EX0 = TAIDEX_7;
+		TA3CTL = TASSEL__SMCLK | ID__8 | MC__UPDOWN | TAIE;        // SMCLK, start timer
+	}else
+	{
+		TA3CCR0 = 0x6000;
+		TA3EX0 = TAIDEX_7;
+		TA3CTL = TASSEL__SMCLK | ID__8 | MC__UPDOWN | TAIE;        // SMCLK, start timer
+	}
 }
 
 void led_flash_green_short(void);

@@ -59,6 +59,7 @@ typedef enum ButtonStep_t {
 //U8 memGpsStatMap[32786] __attribute__((section(".TI.persistent")));
 //#pragma PERSISTENT(cmdToDo)
 static U16 cmdToDo = 0;
+static U16 gCmdTimeoutLong = 0;
 static Boolean gGpsInitialized = false;
 static Boolean gGpsRestarted = false;
 
@@ -73,7 +74,7 @@ static U16 gBlinkRed = 0;
 volatile U16 gAdcBatteryVal = 0;
 
 //GPS time pulses to store GPS position
-static const U16 gps_pulse_cfg_ar[] = {1, 5, 20};
+static const U16 gps_pulse_cfg_ar[] = {1, 5, 20}; //1 is mandatory for command tiemouts!
 static const U16 gps_pulse_cfg_option_num = 3;
 static U16 gps_time_pulse_secs_idx = 0;
 //number of generated GPS time pulses
@@ -82,8 +83,8 @@ static U16 gps_time_pulse_num = 0;
 int main(void)
 {
 	const Message_s * ubxmsg;
-	U16 msgPollCfgPrt = 0;
 	U16 wrongMessageCnt = 0;
+	Boolean powerUpMessageSent = false;
 
 	//WDOG disable
 	WDTCTL = WDTPW | WDTHOLD;
@@ -261,12 +262,12 @@ int main(void)
 			gGpsPowerChange = false;
 			if (gGpsPowered)
 			{
+				powerUpMessageSent = false;
 				gps_uart_enable();
 				gps_ie(); //enable interrupts
-				if (!gGpsInitialized)
+				//if (!gGpsInitialized)
 				{
-					//init_configure_gps();
-					//prepare port cfg msg
+					//konfigure port
 					ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
 					//send it
 					gps_cmdtx(ubxmsg->pMsgBuff);
@@ -303,6 +304,13 @@ int main(void)
 		if (cmdToDo & GPS_PULSE)
 		{
 			cmdToDo &= ~GPS_PULSE;
+			if (gpower_save_mode_activated)
+			{
+				led_flash_green_short();
+			}else
+			{
+				led_flash_red_short();
+			}
 			if (gGpsPowered)
 			{
 				if (gGpsInitialized)
@@ -319,20 +327,13 @@ int main(void)
 						//dbg_txmsg("P.");
 						ubxmsg = ubx_get_msg(MessageIdPollPvt);
 						gps_cmdtx(ubxmsg->pMsgBuff);
-						if (gpower_save_mode_activated)
-						{
-							led_flash_green_short();
-						}else
-						{
-							led_flash_red_short();
-						}
 					}
 				}else //!gGpsInitialized
 				{
 					//configure power save mode
 					ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
 					gps_cmdtx(ubxmsg->pMsgBuff);
-					led_flash_green_short();
+					//led_flash_green_short();
 				}
 			}
 		}
@@ -347,10 +348,15 @@ int main(void)
 				switch (ubxmsg->id)
 				{
 				case MessageIdPollCfgPrt:
-					ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
+					//send this one twotimes (instead of timeout for power-ups...)
+					if (powerUpMessageSent)
+					{
+						ubxmsg = ubx_get_msg(MessageIdSetCfgPrt);
+					}
+					powerUpMessageSent = true;
 					break;
 				case MessageIdSetCfgPrt:
-					//ubxmsg = ubx_get_msg(MessageIdPollCfgGnss); configure power save mode later on
+					//ubxmsg = ubx_get_msg(MessageIdPollCfgGnss); //configure power save mode later on
 #ifdef ARTIFICIAL_GPS
 					//Artificial GPS pulse
 					TB0CCTL0 = CCIE;                          // TACCR0 interrupt enabled
@@ -362,7 +368,6 @@ int main(void)
 					ubxmsg = 0;
 					led_flash_green_long();
 					gps_pulse_en();
-					msgPollCfgPrt++;
 					break;
 				case MessageIdPollCfgGnss:
 //					gContinue = true;
@@ -386,7 +391,6 @@ int main(void)
 //					};
 					//dbg_txmsg("\nGet UBX CFG RXM message: ");
 					ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
-					//msgPollCfgPrt = 0;
 					break;
 				case MessageIdGetCfgRxm:
 //					gContinue = true;
@@ -395,7 +399,6 @@ int main(void)
 //					};
 					//configure power save
 					ubxmsg = ubx_get_msg(MessageIdSetCfgRxm);
-					//msgPollCfgPrt++;
 					break;
 				case MessageIdSetCfgRxm:
 //					gContinue = true;
@@ -405,8 +408,7 @@ int main(void)
 					//turn of the message confirmation
 					//ubxmsg = 0;
 					//check again if the power mode is set:
-					ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
-					//if (msgPollCfgPrt>1) ..DEBUG..
+					//ubxmsg = ubx_get_msg(MessageIdGetCfgRxm);
 					if (1)
 					{
 						led_flash_green_long();
@@ -468,6 +470,8 @@ int main(void)
 			{
 				//dbg_txmsg("P.", 2);
 				//dbg_txmsg(".", 1);
+				//send again:
+				ubxmsg = ubx_get_msg(ubxmsg->id);
 				gps_cmdtx(ubxmsg->pMsgBuff);
 			}
 		}
@@ -625,7 +629,7 @@ void __attribute__ ((interrupt(TIMER2_A0_VECTOR))) Timer2_A0_ISR (void)
 	}
 }
 
-// Timer3_A0 for delays interrupt service routine
+// Timer3_A0 for delays interrupt service routine - probably not used at all...
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
 #pragma vector = TIMER3_A0_VECTOR
 __interrupt void Timer3_A0_ISR (void)
@@ -635,9 +639,8 @@ void __attribute__ ((interrupt(TIMER3_A0_VECTOR))) Timer3_A0_ISR (void)
 #error Compiler not supported!
 #endif
 {
-	TA3CTL = MC__STOP;        // SMCLK, do not count yet
-	TA3EX0 = TAIDEX_0; 		  //clear extended divide
 
+	TA3CTL = MC__STOP;        // SMCLK, do not count yet
 	if (gps_get_txbusy())
 	{
 		gps_set_txbusy(false);
@@ -652,6 +655,52 @@ void __attribute__ ((interrupt(TIMER3_A0_VECTOR))) Timer3_A0_ISR (void)
 		__no_operation();
 
 	}
+}
+
+// Timer3_A1 Interrupt Vector (TAIV) handler
+#if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
+#pragma vector=TIMER3_A1_VECTOR
+__interrupt void TIMER3_A1_ISR(void)
+#elif defined(__GNUC__)
+void __attribute__ ((interrupt(TIMER3_A1_VECTOR))) TIMER3_A1_ISR (void)
+#else
+#error Compiler not supported!
+#endif
+{
+  switch(__even_in_range(TA3IV, TA3IV_TAIFG))
+  {
+    case TA3IV_NONE:   break;               // No interrupt
+    case TA3IV_TACCR1: break;               // CCR1 not used
+    case TA3IV_TACCR2: break;               // CCR2 not used
+    case TA0IV_3:      break;               // reserved
+    case TA0IV_4:      break;               // reserved
+    case TA0IV_5:      break;               // reserved
+    case TA0IV_6:      break;               // reserved
+    case TA3IV_TAIFG:                       // overflow
+    	//maximum time for UPDOWN count is one second, we need two:
+    	if (gCmdTimeoutLong)
+    	{
+    		gCmdTimeoutLong = 0;
+			P7OUT &= ~BIT7;	//turn red led off
+			TA3CTL = MC__STOP;
+			if (gps_get_txbusy())
+			{
+				gps_set_txbusy(false);
+				//wake up and look if message is confirmed
+				cmdToDo |= NXTGPSCMD;
+
+				__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
+				__no_operation();
+
+			}
+    	}else
+    	{
+    		gCmdTimeoutLong++;
+    		//keep counting, wait for next interrupt
+    	}
+      break;
+    default: break;
+  }
 }
 
 // Timer3_B7 for delays interrupt service routine
@@ -758,7 +807,8 @@ void __attribute__ ((interrupt(USCI_A1_VECTOR))) USCI_A1_ISR (void)
 		//if we configure GPS start timeout
 		//if (!gGpsInitialized)
 		{
-			led_flash_msg_long();
+			//set long timout when cfg cmds or long GPS pulses
+			led_flash_msg_long(gps_time_pulse_secs_idx);
 		}
 		//turn off this interrupt
 		UCA1IE &= ~UCTXCPTIE;
