@@ -83,6 +83,7 @@ int main(void)
 {
 	const Message_s * ubxmsg;
 	U16 msgPollCfgPrt = 0;
+	U16 wrongMessageCnt = 0;
 
 	//WDOG disable
 	WDTCTL = WDTPW | WDTHOLD;
@@ -237,62 +238,57 @@ int main(void)
 			}
 		}
 
-		if (gUsbPowerChange && gUsbPowered)
+		if (gUsbPowerChange) //connection/disconnection PC interface
 		{
 			gUsbPowerChange = false;
-			//enable PC communication
-			pcif_enif();
-			//USB will read/write SPI
-			spi_enrx();
-		}
-		if (gUsbPowerChange && !gUsbPowered)
-		{
-			gUsbPowerChange = false;
-			//disable PC communication
-			pcif_disif();
-			//without USB no reads from the SPI memory
-			spi_disrx();
-		}
-
-		//is GPS powered?
-		if (gGpsPowerChange && gGpsPowered)
-		{
-			gGpsPowerChange = false;
-			gps_uart_enable();
-			gps_ie(); //enable interrupts
-			if (!gGpsInitialized)
+			if (gUsbPowered)
 			{
-				//init_configure_gps();
-				//prepare port cfg msg
-				ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-				//send it
-				gps_cmdtx(ubxmsg->pMsgBuff);
+				//enable PC communication
+				pcif_enif();
+				//USB will read/write SPI
+				spi_enrx();
+			}else // !gUsbPowered
+			{
+				//disable PC communication
+				pcif_disif();
+				//without USB no reads from the SPI memory
+				spi_disrx();
 			}
 		}
-		if (gGpsPowerChange && !gGpsPowered)
+
+		if (gGpsPowerChange) //GPS power up/down
 		{
 			gGpsPowerChange = false;
-			gps_id(); //disable interrupt
-			gps_uart_disable();
-			gGpsInitialized = false;
-			//flash long red that GPS chip is off power
-			led_flash_red_long();
-			gps_time_pulse_secs_idx = 0; //set GPS pulse period to default
-
-		}
-
-		if (!gGpsPowered)
-		{
-			if (cmdToDo & BUTTON1)
+			if (gGpsPowered)
 			{
-				cmdToDo &= ~BUTTON1;
+				gps_uart_enable();
+				gps_ie(); //enable interrupts
+				if (!gGpsInitialized)
+				{
+					//init_configure_gps();
+					//prepare port cfg msg
+					ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+					//send it
+					gps_cmdtx(ubxmsg->pMsgBuff);
+				}
+			}else //!gGpsPowered
+			{
+				gps_id(); //disable interrupt
+				gps_uart_disable();
+				gGpsInitialized = false;
+				//flash long red that GPS chip is off power
+				led_flash_red_long();
+				gps_time_pulse_secs_idx = 0; //set GPS pulse period to default
 			}
 		}
-		if (gGpsPowered)
+
+
+		if (cmdToDo & BUTTON1)
 		{
-			if (cmdToDo & BUTTON1)
+			cmdToDo &= ~BUTTON1;
+			//function only when gps powered
+			if (gGpsPowered)
 			{
-				cmdToDo &= ~BUTTON1;
 				//configure GPS:
 				but_yellow_disable();
 				gps_time_pulse_secs_idx++;
@@ -304,48 +300,47 @@ int main(void)
 			}
 		}
 
-		if (gGpsPowered && gGpsInitialized)
+		if (cmdToDo & GPS_PULSE)
 		{
-			if (cmdToDo & GPS_PULSE)
+			cmdToDo &= ~GPS_PULSE;
+			if (gGpsPowered)
 			{
-				cmdToDo &= ~GPS_PULSE;
-				gps_time_pulse_num++;
-				if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx])
+				if (gGpsInitialized)
 				{
-					//measure battery voltage
-					ADC12CTL0 ^= ADC12SC;
-					gps_time_pulse_num = 0;
-					//dbg_txmsg("\nPoll GPS status");
-					//dbg_txmsg("P.");
-					ubxmsg = ubx_get_msg(MessageIdPollPvt);
-					gps_cmdtx(ubxmsg->pMsgBuff);
-					if (gpower_save_mode_activated)
+					gps_time_pulse_num++;
+					//if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx]) gps_time_pulse_num = 0;
+					if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx])
+					//if (1)
 					{
-						led_flash_green_short();
-					}else
-					{
-						led_flash_red_short();
+						//measure battery voltage
+						ADC12CTL0 ^= ADC12SC;
+						gps_time_pulse_num = 0;
+						//dbg_txmsg("\nPoll GPS status");
+						//dbg_txmsg("P.");
+						ubxmsg = ubx_get_msg(MessageIdPollPvt);
+						gps_cmdtx(ubxmsg->pMsgBuff);
+						if (gpower_save_mode_activated)
+						{
+							led_flash_green_short();
+						}else
+						{
+							led_flash_red_short();
+						}
 					}
+				}else //!gGpsInitialized
+				{
+					//configure power save mode
+					ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
+					gps_cmdtx(ubxmsg->pMsgBuff);
+					led_flash_green_short();
 				}
 			}
 		}
 
-		if (gGpsPowered && !gGpsInitialized)
-		{
-			if (cmdToDo & GPS_PULSE)
-			{
-				cmdToDo &= ~GPS_PULSE;
-				//configure power save mode
-				ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
-				gps_cmdtx(ubxmsg->pMsgBuff);
-				led_flash_green_short();
-			}
-		}
 
 		if (cmdToDo & NXTGPSCMD)
 		{
 			cmdToDo &= ~NXTGPSCMD;
-
 			if ((ubxmsg > 0) && (ubxmsg->confirmed))
 			{
 				//dbg_txmsg("C.", 2);
@@ -436,20 +431,26 @@ int main(void)
 //					while(gContinue){
 //						__bis_SR_register(GIE);
 //					};
-					spiif_storeubx(ubxmsg);
+					//if (gps_time_pulse_num >= gps_pulse_cfg_ar[gps_time_pulse_secs_idx])
+					{
+						//gps_time_pulse_num = 0;
+						spiif_storeubx(ubxmsg);
+						led_flash_red_short();
+					}
 					if (ubxmsg->pBody->navPvt.flags > 3)
 					{
 						gpower_save_mode_activated = true;
 						ubxmsg = 0;
-						//blick green that we received gps pulse
-						led_flash_green_short();
+						//blick green that we received gps message
+						//led_flash_green_short();
 					}else
 					{
 						gpower_save_mode_activated = false;
-						//configure power save mode again:
-						ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
-						gps_pulse_dis();
-						led_flash_red_short();
+						//configure power save mode again: !blbost, powersavemode se aktivuje sam, pokud je tak GPS nastavena! (my ji tak nastavujeme)
+						//DOCASNE: ubxmsg = ubx_get_msg(MessageIdPollCfgGnss);
+						//DOCASNE: gps_pulse_dis();
+						ubxmsg = 0; //DOCASNE:
+						//led_flash_red_short();
 					}
 					//displej_this(ubxmsg->pBody->navPvt.year);
 					break;
@@ -477,20 +478,25 @@ int main(void)
 			tmp = gps_rx_ubx_msg(ubxmsg, true);
 			if (tmp == 5)
 			{
-				led_off_red();
-				led_flash_green_short();
+				wrongMessageCnt = 0;
+				//DOCASNE:				led_off_red();
+				//DOCASNE:				led_flash_green_short();
 				__no_operation();
 			}else
 			{
-				if(tmp > 0 && gGpsInitialized)
+				if(tmp > 0 && gGpsInitialized) //message error
 				{
-					//probably GPS has restarted... turn of NMEA
-					gGpsInitialized = false;
-					gGpsRestarted = true;
-					gps_pulse_dis();
-					ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
-					//send it
-					gps_cmdtx(ubxmsg->pMsgBuff);
+					wrongMessageCnt++;
+					if (wrongMessageCnt>250)
+					{
+						//probably GPS has restarted... turn of NMEA and initialize gps:
+						gGpsInitialized = false;
+						gGpsRestarted = true;
+						gps_pulse_dis();
+						ubxmsg = ubx_get_msg(MessageIdPollCfgPrt);
+						//send it
+						gps_cmdtx(ubxmsg->pMsgBuff);
+					}
 				}
 			}
 		}
@@ -730,7 +736,7 @@ void __attribute__ ((interrupt(USCI_A1_VECTOR))) USCI_A1_ISR (void)
 	{
 	case USCI_NONE: break;
 	case USCI_UART_UCRXIFG:
-		P7OUT ^= BIT7;
+		//P7OUT ^= BIT7; toggle red led!
 		cmdToDo |= GPSRXCHAR;
 		__bic_SR_register_on_exit(LPM3_bits | GIE);     // Exit LPM3
 		__no_operation();
